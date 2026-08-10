@@ -2,4 +2,5 @@
 *.out
 coverage.*
 dist/
+bazel-*
 user.bazelrc

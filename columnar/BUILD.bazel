@@ -34,6 +34,7 @@ go_library(
 go_test(
     name = "columnar_test",
     srcs = [
+        "example_test.go",
         "ipc_blob_test.go",
         "ops_topology_test.go",
         "rowcodec_jsonbridge_test.go",
@@ -47,4 +48,18 @@ go_test(
         "@com_github_apache_arrow_go_v18//arrow/array",
         "@com_github_apache_arrow_go_v18//arrow/memory",
     ],
+)
+
+# Inputs for //:docsite-site; example_test.go files contribute the runnable
+# examples shown on the API reference site.
+filegroup(
+    name = "docsite_srcs",
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ) + glob(
+        ["example_test.go"],
+        allow_empty = True,
+    ),
+    visibility = ["//:__pkg__"],
 )

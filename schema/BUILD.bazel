@@ -34,6 +34,7 @@ go_test(
         "cache_test.go",
         "client_test.go",
         "compat_test.go",
+        "example_test.go",
         "schema_test.go",
         "serdes_test.go",
         "stub_test.go",
@@ -48,4 +49,18 @@ go_test(
         "@org_golang_google_protobuf//types/dynamicpb",
         "@org_golang_google_protobuf//types/known/wrapperspb",
     ],
+)
+
+# Inputs for //:docsite-site; example_test.go files contribute the runnable
+# examples shown on the API reference site.
+filegroup(
+    name = "docsite_srcs",
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ) + glob(
+        ["example_test.go"],
+        allow_empty = True,
+    ),
+    visibility = ["//:__pkg__"],
 )

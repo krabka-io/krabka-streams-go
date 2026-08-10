@@ -13,4 +13,8 @@ batch processing for Go stream processors.
 | [Testing](testing.md)                 | Test driver and registry stub                              |
 | [Architecture](architecture.md)       | Package layout and design decisions                        |
 
+The API reference for every package is published at
+<https://krabka-io.github.io/krabka-streams-go/>, generated from the godoc
+comments by `bazel build //:docsite-site`.
+
 For the mapping to `krabka-streams-java`, see [PARITY.md](../PARITY.md).

@@ -1,0 +1,51 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One Pages deployment at a time; never cancel an in-flight production deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+      - name: Build the documentation site
+        # Hermetic: the godoc renderer runs from Bazel's pinned Go SDK, so
+        # the output never depends on the runner's installed toolchain.
+        run: bazel build //:docsite-site
+      - name: Configure GitHub Pages
+        # Fails fast with a clear message if Pages is not enabled for the
+        # repository (Settings > Pages > Source: GitHub Actions).
+        uses: actions/configure-pages@v6
+      - name: Upload the site artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: bazel-bin/docsite-site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

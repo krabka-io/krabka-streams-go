@@ -1,5 +1,6 @@
 load("@gazelle//:def.bzl", "gazelle")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//tools:docsite.bzl", "docsite_site")
 
 # gazelle:prefix github.com/krabka-io/krabka-streams-go
 gazelle(name = "gazelle")
@@ -13,6 +14,36 @@ go_library(
 
 go_test(
     name = "krabka-streams-go_test",
-    srcs = ["krabkastreams_test.go"],
+    srcs = [
+        "example_test.go",
+        "krabkastreams_test.go",
+    ],
     embed = [":krabka-streams-go"],
+)
+
+filegroup(
+    name = "docsite_srcs",
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ) + glob(
+        ["example_test.go"],
+        allow_empty = True,
+    ),
+)
+
+# The hermetic API reference site the Pages workflow deploys: godoc comments
+# rendered to static HTML by //tools/docsite, with no dependency on the
+# runner's installed Go toolchain.
+docsite_site(
+    name = "docsite-site",
+    srcs = [
+        ":docsite_srcs",
+        "//columnar:docsite_srcs",
+        "//columnarschema:docsite_srcs",
+        "//krabkatest:docsite_srcs",
+        "//schema:docsite_srcs",
+    ],
+    module = "github.com/krabka-io/krabka-streams-go",
+    repo_url = "https://github.com/krabka-io/krabka-streams-go",
 )

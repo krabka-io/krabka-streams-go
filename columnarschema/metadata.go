@@ -53,5 +53,3 @@ const (
 	// column.
 	MetadataProtoMessage = "krabka.proto.message"
 )
-
-func metadataOf(pairs map[string]string) map[string]string { return pairs }

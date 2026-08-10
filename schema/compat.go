@@ -3,7 +3,8 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/hamba/avro/v2"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -125,7 +126,7 @@ func checkJSONReader(reader, writer map[string]any, path string, direction Compa
 			"%s: %s narrows type from %v to %v", direction, path, writerTypes, readerTypes))
 		return
 	}
-	if !contains(readerTypes, "object") {
+	if !slices.Contains(readerTypes, "object") {
 		if _, ok := reader["properties"]; !ok {
 			return
 		}
@@ -133,7 +134,7 @@ func checkJSONReader(reader, writer map[string]any, path string, direction Compa
 	readerRequired := jsonStrings(reader["required"])
 	writerRequired := jsonStrings(writer["required"])
 	for _, required := range readerRequired {
-		if !contains(writerRequired, required) {
+		if !slices.Contains(writerRequired, required) {
 			*errors = append(*errors, fmt.Sprintf(
 				"%s: %s became required", direction, childPath(path, required)))
 		}
@@ -163,7 +164,7 @@ func checkProtobufReader(reader, writer protoreflect.FileDescriptor, direction C
 			continue
 		}
 		writerFields := writerMessage.Fields()
-		for i := 0; i < writerFields.Len(); i++ {
+		for i := range writerFields.Len() {
 			writerField := writerFields.Get(i)
 			readerField := readerMessage.Fields().ByNumber(writerField.Number())
 			if readerField != nil &&
@@ -175,7 +176,7 @@ func checkProtobufReader(reader, writer protoreflect.FileDescriptor, direction C
 			}
 		}
 		readerFields := readerMessage.Fields()
-		for i := 0; i < readerFields.Len(); i++ {
+		for i := range readerFields.Len() {
 			readerField := readerFields.Get(i)
 			if readerField.Cardinality() == protoreflect.Required &&
 				writerMessage.Fields().ByNumber(readerField.Number()) == nil {
@@ -190,7 +191,7 @@ func checkProtobufReader(reader, writer protoreflect.FileDescriptor, direction C
 func protoMessages(file protoreflect.FileDescriptor) map[string]protoreflect.MessageDescriptor {
 	result := map[string]protoreflect.MessageDescriptor{}
 	messages := file.Messages()
-	for i := 0; i < messages.Len(); i++ {
+	for i := range messages.Len() {
 		addProtoMessage(messages.Get(i), result)
 	}
 	return result
@@ -199,7 +200,7 @@ func protoMessages(file protoreflect.FileDescriptor) map[string]protoreflect.Mes
 func addProtoMessage(message protoreflect.MessageDescriptor, result map[string]protoreflect.MessageDescriptor) {
 	result[string(message.FullName())] = message
 	nested := message.Messages()
-	for i := 0; i < nested.Len(); i++ {
+	for i := range nested.Len() {
 		addProtoMessage(nested.Get(i), result)
 	}
 }
@@ -266,18 +267,9 @@ func jsonProperties(schemaNode map[string]any) map[string]map[string]any {
 	return result
 }
 
-func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
 func containsAll(values, targets []string) bool {
 	for _, target := range targets {
-		if !contains(values, target) {
+		if !slices.Contains(values, target) {
 			return false
 		}
 	}
@@ -285,12 +277,7 @@ func containsAll(values, targets []string) bool {
 }
 
 func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }
 
 func childPath(path, name string) string {

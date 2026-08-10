@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -145,9 +146,7 @@ func (c *SchemaCache) Prewarm(ctx context.Context) error {
 func (c *SchemaCache) PrewarmReport(ctx context.Context) PrewarmReport {
 	c.mu.Lock()
 	subjects := make(map[string]internedSchema, len(c.interned))
-	for subject, local := range c.interned {
-		subjects[subject] = local
-	}
+	maps.Copy(subjects, c.interned)
 	c.mu.Unlock()
 
 	type outcome struct {
@@ -222,9 +221,7 @@ func (c *SchemaCache) WriterReferences(schemaID int) map[string]string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	result := make(map[string]string, len(c.writerReferences[schemaID]))
-	for name, text := range c.writerReferences[schemaID] {
-		result[name] = text
-	}
+	maps.Copy(result, c.writerReferences[schemaID])
 	return result
 }
 

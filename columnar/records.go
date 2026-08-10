@@ -119,10 +119,7 @@ type ProducedToTopic struct {
 }
 
 func cloneBytes(value []byte) []byte {
-	if value == nil {
-		return nil
-	}
-	return append([]byte{}, value...)
+	return bytes.Clone(value)
 }
 
 func cloneHeaders(headers []RecordHeader) []RecordHeader {

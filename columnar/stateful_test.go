@@ -272,7 +272,7 @@ func TestValueFacadeHandlesTimeColumns(t *testing.T) {
 	}, nil))
 	defer builder.Release()
 
-	for column := 0; column < 4; column++ {
+	for column := range 4 {
 		if err := AppendValue(builder.Field(column), elapsed); err != nil {
 			t.Fatal(err)
 		}
@@ -293,7 +293,7 @@ func TestValueFacadeHandlesTimeColumns(t *testing.T) {
 	if Value(batch.Column(3), 0) != int64(elapsed) {
 		t.Fatal("unexpected nanoseconds value")
 	}
-	for column := 0; column < 4; column++ {
+	for column := range 4 {
 		if Value(batch.Column(column), 1) != nil {
 			t.Fatal("null must read as nil")
 		}

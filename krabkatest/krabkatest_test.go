@@ -1,7 +1,6 @@
 package krabkatest
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -34,7 +33,7 @@ func TestRegistryStubServesTheFullPrewarmAndSerdeCycle(t *testing.T) {
 	}
 
 	serde.RegisterSubject("orders")
-	if err := cache.Prewarm(context.Background()); err != nil {
+	if err := cache.Prewarm(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,7 +63,7 @@ func TestRegistryStubAssignsStableIDsAndServesThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	first, err := client.Register(ctx, "orders-value", schema.KindAvro, `"string"`, "")
 	if err != nil {

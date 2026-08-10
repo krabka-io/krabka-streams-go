@@ -25,24 +25,24 @@ func PrintProtoFile(file protoreflect.FileDescriptor) string {
 		fmt.Fprintf(&output, "package %s;\n", file.Package())
 	}
 	imports := file.Imports()
-	for i := 0; i < imports.Len(); i++ {
+	for i := range imports.Len() {
 		fmt.Fprintf(&output, "import \"%s\";\n", escapeProto(imports.Get(i).Path()))
 	}
 	appendProtoOptions(&output, file.Options(), "", "option ")
 	enums := file.Enums()
-	for i := 0; i < enums.Len(); i++ {
+	for i := range enums.Len() {
 		appendProtoEnum(&output, enums.Get(i), "")
 	}
 	messages := file.Messages()
-	for i := 0; i < messages.Len(); i++ {
+	for i := range messages.Len() {
 		appendProtoMessage(&output, messages.Get(i), "")
 	}
 	extensions := file.Extensions()
-	for i := 0; i < extensions.Len(); i++ {
+	for i := range extensions.Len() {
 		appendProtoExtension(&output, extensions.Get(i), "")
 	}
 	services := file.Services()
-	for i := 0; i < services.Len(); i++ {
+	for i := range services.Len() {
 		appendProtoService(&output, services.Get(i))
 	}
 	return output.String()
@@ -52,7 +52,7 @@ func appendProtoService(output *strings.Builder, service protoreflect.ServiceDes
 	fmt.Fprintf(output, "\nservice %s {\n", service.Name())
 	appendProtoOptions(output, service.Options(), "  ", "option ")
 	methods := service.Methods()
-	for i := 0; i < methods.Len(); i++ {
+	for i := range methods.Len() {
 		method := methods.Get(i)
 		fmt.Fprintf(output, "  rpc %s (", method.Name())
 		if method.IsStreamingClient() {
@@ -82,11 +82,11 @@ func appendProtoMessage(output *strings.Builder, message protoreflect.MessageDes
 	inner := indent + "  "
 	appendProtoOptions(output, message.Options(), inner, "option ")
 	enums := message.Enums()
-	for i := 0; i < enums.Len(); i++ {
+	for i := range enums.Len() {
 		appendProtoEnum(output, enums.Get(i), inner)
 	}
 	nested := message.Messages()
-	for i := 0; i < nested.Len(); i++ {
+	for i := range nested.Len() {
 		if !isGroupType(message, nested.Get(i)) {
 			appendProtoMessage(output, nested.Get(i), inner)
 		}
@@ -106,14 +106,14 @@ func appendProtoMessage(output *strings.Builder, message protoreflect.MessageDes
 		fmt.Fprintf(output, "%sextensions %d to %d;\n", inner, extension.GetStart(), extension.GetEnd()-1)
 	}
 	fields := message.Fields()
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		field := fields.Get(i)
 		if oneof := field.ContainingOneof(); oneof == nil || oneof.IsSynthetic() {
 			appendProtoField(output, field, inner)
 		}
 	}
 	oneofs := message.Oneofs()
-	for i := 0; i < oneofs.Len(); i++ {
+	for i := range oneofs.Len() {
 		oneof := oneofs.Get(i)
 		if oneof.IsSynthetic() {
 			continue
@@ -121,13 +121,13 @@ func appendProtoMessage(output *strings.Builder, message protoreflect.MessageDes
 		fmt.Fprintf(output, "%soneof %s {\n", inner, oneof.Name())
 		appendProtoOptions(output, oneof.Options(), inner+"  ", "option ")
 		oneofFields := oneof.Fields()
-		for j := 0; j < oneofFields.Len(); j++ {
+		for j := range oneofFields.Len() {
 			appendProtoField(output, oneofFields.Get(j), inner+"  ")
 		}
 		fmt.Fprintf(output, "%s}\n", inner)
 	}
 	extensions := message.Extensions()
-	for i := 0; i < extensions.Len(); i++ {
+	for i := range extensions.Len() {
 		appendProtoExtension(output, extensions.Get(i), inner)
 	}
 	fmt.Fprintf(output, "%s}\n", indent)
@@ -135,7 +135,7 @@ func appendProtoMessage(output *strings.Builder, message protoreflect.MessageDes
 
 func isGroupType(message, nested protoreflect.MessageDescriptor) bool {
 	fields := message.Fields()
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		field := fields.Get(i)
 		if field.Kind() == protoreflect.GroupKind && field.Message() == nested {
 			return true
@@ -148,7 +148,7 @@ func appendProtoEnum(output *strings.Builder, enum protoreflect.EnumDescriptor, 
 	fmt.Fprintf(output, "\n%senum %s {\n", indent, enum.Name())
 	appendProtoOptions(output, enum.Options(), indent+"  ", "option ")
 	values := enum.Values()
-	for i := 0; i < values.Len(); i++ {
+	for i := range values.Len() {
 		value := values.Get(i)
 		fmt.Fprintf(output, "%s  %s = %d", indent, value.Name(), value.Number())
 		appendInlineProtoOptions(output, value.Options())
@@ -182,7 +182,7 @@ func appendProtoField(output *strings.Builder, field protoreflect.FieldDescripto
 	if field.Kind() == protoreflect.GroupKind {
 		fmt.Fprintf(output, "group %s = %d {\n", field.Message().Name(), field.Number())
 		groupFields := field.Message().Fields()
-		for i := 0; i < groupFields.Len(); i++ {
+		for i := range groupFields.Len() {
 			appendProtoField(output, groupFields.Get(i), indent+"  ")
 		}
 		fmt.Fprintf(output, "%s}\n", indent)
@@ -246,7 +246,7 @@ func forEachOption(options proto.Message, emit func(name, value string)) {
 		}
 		if field.IsList() {
 			list := value.List()
-			for i := 0; i < list.Len(); i++ {
+			for i := range list.Len() {
 				emit(name, protoOptionValue(field, list.Get(i)))
 			}
 		} else {

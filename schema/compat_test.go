@@ -98,27 +98,27 @@ func TestDetectsNarrowingFromAnUnconstrainedJSONSchema(t *testing.T) {
 func compatDescriptor(t *testing.T, fieldType descriptorpb.FieldDescriptorProto_Type, extraField bool) protoreflect.FileDescriptor {
 	t.Helper()
 	fields := []*descriptorpb.FieldDescriptorProto{{
-		Name:     proto.String("id"),
+		Name:     new("id"),
 		Number:   proto.Int32(1),
 		Type:     fieldType.Enum(),
 		Label:    descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
-		JsonName: proto.String("id"),
+		JsonName: new("id"),
 	}}
 	if extraField {
 		fields = append(fields, &descriptorpb.FieldDescriptorProto{
-			Name:     proto.String("note"),
+			Name:     new("note"),
 			Number:   proto.Int32(2),
 			Type:     descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
 			Label:    descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
-			JsonName: proto.String("note"),
+			JsonName: new("note"),
 		})
 	}
 	file := &descriptorpb.FileDescriptorProto{
-		Name:    proto.String("value.proto"),
-		Package: proto.String("demo"),
-		Syntax:  proto.String("proto3"),
+		Name:    new("value.proto"),
+		Package: new("demo"),
+		Syntax:  new("proto3"),
 		MessageType: []*descriptorpb.DescriptorProto{{
-			Name:  proto.String("Value"),
+			Name:  new("Value"),
 			Field: fields,
 		}},
 	}

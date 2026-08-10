@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"math"
 	"math/big"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -137,7 +138,7 @@ func Filter(mem memory.Allocator, predicate RowPredicate) *BuiltinOp {
 	return newBuiltinOp(func() builtinOperation {
 		return statelessOperation(func(batch arrow.Record) (arrow.Record, error) {
 			var rows []int
-			for row := 0; row < int(batch.NumRows()); row++ {
+			for row := range int(batch.NumRows()) {
 				if predicate(batch, row) {
 					rows = append(rows, row)
 				}
@@ -244,7 +245,7 @@ func applyDerivedColumns(batch arrow.Record, derived []DerivedColumn, mem memory
 	}
 	var fields []arrow.Field
 	appended := map[string]bool{}
-	for i := 0; i < batch.Schema().NumFields(); i++ {
+	for i := range batch.Schema().NumFields() {
 		field := batch.Schema().Field(i)
 		if replacement, ok := replacements[field.Name]; ok {
 			fields = append(fields, replacement)
@@ -277,7 +278,7 @@ func applyDerivedColumns(batch arrow.Record, derived []DerivedColumn, mem memory
 			continue
 		}
 		builder := array.NewBuilder(mem, field.Type)
-		for row := 0; row < int(batch.NumRows()); row++ {
+		for row := range int(batch.NumRows()) {
 			value, err := expression(batch, row)
 			if err != nil {
 				builder.Release()
@@ -329,9 +330,9 @@ func (o *groupByOperation) apply(batch arrow.Record) (arrow.Record, error) {
 			return nil, fmt.Errorf("Arrow column does not exist: %s", TimestampColumn)
 		}
 		timestamps = typed
-		for row := 0; row < int(batch.NumRows()); row++ {
-			if !typed.IsNull(row) && typed.Value(row) > o.streamTime {
-				o.streamTime = typed.Value(row)
+		for row := range int(batch.NumRows()) {
+			if !typed.IsNull(row) {
+				o.streamTime = max(o.streamTime, typed.Value(row))
 			}
 		}
 		if columnByName(batch, WindowStartColumn) != nil || columnByName(batch, WindowEndColumn) != nil {
@@ -353,7 +354,7 @@ func (o *groupByOperation) apply(batch arrow.Record) (arrow.Record, error) {
 		}
 	}
 
-	for row := 0; row < int(batch.NumRows()); row++ {
+	for row := range int(batch.NumRows()) {
 		keyParts := make([]any, 0, len(o.keys)+2)
 		for _, vector := range keyVectors {
 			keyParts = append(keyParts, arrowValue(vector, row))
@@ -488,7 +489,7 @@ func (o *groupByOperation) restore(snapshot []byte) error {
 	}
 	groups := map[string]*groupEntry{}
 	var order []string
-	for i := uint32(0); i < groupCount; i++ {
+	for range groupCount {
 		partCount, err := reader.uint32()
 		if err != nil {
 			return fmt.Errorf("cannot restore groupBy state: %w", err)
@@ -761,11 +762,7 @@ func encodeValue(value any) ([]byte, error) {
 		}
 		return buffer, nil
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(typed))
 		buffer := binary.BigEndian.AppendUint32([]byte{'M'}, uint32(len(keys)))
 		for _, key := range keys {
 			buffer = appendSized(buffer, []byte(key))
@@ -827,7 +824,7 @@ func (r *valueReader) sized() ([]byte, error) {
 	if uint32(len(r.data)) < length {
 		return nil, fmt.Errorf("truncated snapshot")
 	}
-	result := append([]byte{}, r.data[:length]...)
+	result := bytes.Clone(r.data[:length])
 	r.data = r.data[length:]
 	return result, nil
 }
@@ -910,7 +907,7 @@ func (r *valueReader) value() (any, error) {
 			return nil, err
 		}
 		result := make(map[string]any, count)
-		for i := uint32(0); i < count; i++ {
+		for range count {
 			key, err := r.sized()
 			if err != nil {
 				return nil, err

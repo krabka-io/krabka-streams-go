@@ -1,6 +1,8 @@
 package columnar
 
 import (
+	"bytes"
+
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
@@ -103,7 +105,7 @@ func rowKey(arr arrow.Array, row int) []byte {
 	if !ok || keys.IsNull(row) {
 		return nil
 	}
-	return append([]byte{}, keys.Value(row)...)
+	return bytes.Clone(keys.Value(row))
 }
 
 func rowTimestamp(arr arrow.Array, row int) int64 {

@@ -90,8 +90,7 @@ func (s *schemaSerde[T]) Deserialize(topic string, data []byte) (T, error) {
 	}
 	value, err := s.deserializeBody(frame.SchemaID, frame.Body)
 	if err != nil {
-		var pending *FetchPendingError
-		if errors.As(err, &pending) {
+		if _, ok := errors.AsType[*FetchPendingError](err); ok {
 			return zero, err
 		}
 		return zero, fmt.Errorf("cannot deserialize schema value: %w", err)

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -126,7 +127,7 @@ func (s *SchemaRegistryStub) register(writer http.ResponseWriter, request *http.
 		s.idsBySchema[value.key()] = id
 		s.schemasByID[id] = value
 	}
-	if !containsInt(s.subjectVersions[subject], id) {
+	if !slices.Contains(s.subjectVersions[subject], id) {
 		s.subjectVersions[subject] = append(s.subjectVersions[subject], id)
 	}
 	reply(writer, 200, map[string]any{"id": id})
@@ -139,13 +140,13 @@ func (s *SchemaRegistryStub) lookup(writer http.ResponseWriter, request *http.Re
 	}
 	id, exists := s.idsBySchema[value.key()]
 	versions := s.subjectVersions[subject]
-	if !exists || !containsInt(versions, id) {
+	if !exists || !slices.Contains(versions, id) {
 		replyError(writer, 404, 40403, "schema not found")
 		return
 	}
 	body := schemaBody(id, value)
 	body["subject"] = subject
-	body["version"] = indexOf(versions, id) + 1
+	body["version"] = slices.Index(versions, id) + 1
 	reply(writer, 200, body)
 }
 
@@ -214,17 +215,4 @@ func reply(writer http.ResponseWriter, status int, body map[string]any) {
 
 func replyError(writer http.ResponseWriter, status, code int, message string) {
 	reply(writer, status, map[string]any{"error_code": code, "message": message})
-}
-
-func containsInt(values []int, target int) bool {
-	return indexOf(values, target) >= 0
-}
-
-func indexOf(values []int, target int) int {
-	for i, value := range values {
-		if value == target {
-			return i
-		}
-	}
-	return -1
 }

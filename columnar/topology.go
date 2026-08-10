@@ -2,6 +2,7 @@ package columnar
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -55,12 +56,7 @@ func (c *Context) drain() []arrow.Record {
 }
 
 func (c *Context) contains(batch arrow.Record) bool {
-	for _, candidate := range c.forwarded {
-		if candidate == batch {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.forwarded, batch)
 }
 
 // Join configures a stateful co-partitioned inner equi-join within an

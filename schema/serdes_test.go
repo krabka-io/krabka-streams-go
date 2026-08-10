@@ -240,44 +240,44 @@ func TestUnknownWriterSchemaSurfacesPendingError(t *testing.T) {
 
 func TestProtobufPrintsFullDescriptorsAndFramesNestedIndexes(t *testing.T) {
 	file := &descriptorpb.FileDescriptorProto{
-		Name:    proto.String("demo.proto"),
-		Syntax:  proto.String("proto3"),
-		Package: proto.String("demo"),
-		Options: &descriptorpb.FileOptions{JavaPackage: proto.String("demo.generated")},
+		Name:    new("demo.proto"),
+		Syntax:  new("proto3"),
+		Package: new("demo"),
+		Options: &descriptorpb.FileOptions{JavaPackage: new("demo.generated")},
 		EnumType: []*descriptorpb.EnumDescriptorProto{{
-			Name: proto.String("Status"),
+			Name: new("Status"),
 			Value: []*descriptorpb.EnumValueDescriptorProto{{
-				Name: proto.String("UNKNOWN"), Number: proto.Int32(0),
+				Name: new("UNKNOWN"), Number: proto.Int32(0),
 			}},
 		}},
 		MessageType: []*descriptorpb.DescriptorProto{{
-			Name: proto.String("Outer"),
+			Name: new("Outer"),
 			NestedType: []*descriptorpb.DescriptorProto{{
-				Name: proto.String("Nested"),
+				Name: new("Nested"),
 				Field: []*descriptorpb.FieldDescriptorProto{{
-					Name:     proto.String("value"),
+					Name:     new("value"),
 					Number:   proto.Int32(1),
 					Type:     descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
 					Label:    descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
-					JsonName: proto.String("value"),
+					JsonName: new("value"),
 				}},
 			}},
-			OneofDecl: []*descriptorpb.OneofDescriptorProto{{Name: proto.String("choice")}},
+			OneofDecl: []*descriptorpb.OneofDescriptorProto{{Name: new("choice")}},
 			Field: []*descriptorpb.FieldDescriptorProto{{
-				Name:       proto.String("name"),
+				Name:       new("name"),
 				Number:     proto.Int32(1),
 				Type:       descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
 				Label:      descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
 				OneofIndex: proto.Int32(0),
-				JsonName:   proto.String("name"),
+				JsonName:   new("name"),
 			}},
 		}},
 		Service: []*descriptorpb.ServiceDescriptorProto{{
-			Name: proto.String("Demo"),
+			Name: new("Demo"),
 			Method: []*descriptorpb.MethodDescriptorProto{{
-				Name:       proto.String("Get"),
-				InputType:  proto.String(".demo.Outer"),
-				OutputType: proto.String(".demo.Outer"),
+				Name:       new("Get"),
+				InputType:  new(".demo.Outer"),
+				OutputType: new(".demo.Outer"),
 			}},
 		}},
 	}

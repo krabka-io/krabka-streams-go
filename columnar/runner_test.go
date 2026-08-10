@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"testing"
@@ -46,9 +47,7 @@ func (c *mockConsumer) Poll(ctx context.Context, timeout time.Duration) (map[Top
 }
 
 func (c *mockConsumer) CommitOffsets(ctx context.Context, offsets map[TopicPartition]int64) error {
-	for partition, offset := range offsets {
-		c.committed[partition] = offset
-	}
+	maps.Copy(c.committed, offsets)
 	return nil
 }
 
@@ -112,7 +111,7 @@ func TestFetchesProcessesProducesAndAdvancesOffset(t *testing.T) {
 		{partition: {NewConsumedRecord(nil, data, 0, 0, 100)}},
 	}
 
-	next, err := RunPartitionOnce(context.Background(), built, consumer, producer, "in", 0, 100, 0)
+	next, err := RunPartitionOnce(t.Context(), built, consumer, producer, "in", 0, 100, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +147,7 @@ func TestEmptyPollKeepsOffsetAndDoesNotProduce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	next, err := RunPartitionOnce(context.Background(), built, consumer, producer, "in", 0, 42, 0)
+	next, err := RunPartitionOnce(t.Context(), built, consumer, producer, "in", 0, 42, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +290,7 @@ func TestDeadLettersFailedBatchesAndReportsMetrics(t *testing.T) {
 	}
 	metrics := NewMetrics()
 
-	offsets, err := runGroupOnce(context.Background(), built, consumer, producer, 0,
+	offsets, err := runGroupOnce(t.Context(), built, consumer, producer, 0,
 		DeadLetterPolicy("dlq"), metrics)
 	if err != nil {
 		t.Fatal(err)
@@ -369,7 +368,7 @@ func TestRethrowsRetriableFailuresInsteadOfDeadLettering(t *testing.T) {
 		{partition: {NewConsumedRecord(nil, data, 0, 0, 0)}},
 	}
 
-	_, err = runGroupOnce(context.Background(), built, consumer, producer, 0,
+	_, err = runGroupOnce(t.Context(), built, consumer, producer, 0,
 		DeadLetterPolicy("dlq"), NewMetrics())
 
 	if err == nil || !strings.Contains(err.Error(), "registry fetch pending") {

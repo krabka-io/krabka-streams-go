@@ -1,6 +1,7 @@
 package columnarschema
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/big"
@@ -78,7 +79,7 @@ func (b *ProtobufRowBridge[T]) BatchToRows(batch arrow.Record) ([]T, error) {
 		}
 		columns[column] = batch.Column(indices[0])
 	}
-	for row := 0; row < int(batch.NumRows()); row++ {
+	for row := range int(batch.NumRows()) {
 		message := b.prototype.ProtoReflect().New()
 		for column, field := range b.fields {
 			value := columnar.Value(columns[column], row)
@@ -148,7 +149,7 @@ func protoScalarValue(value protoreflect.Value, field protoreflect.FieldDescript
 		}
 		return strconv.Itoa(int(value.Enum()))
 	case protoreflect.BytesKind:
-		return append([]byte{}, value.Bytes()...)
+		return bytes.Clone(value.Bytes())
 	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
 		return int32(value.Int())
 	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
@@ -189,7 +190,7 @@ func protoMessageValue(message protoreflect.Message, arrowField arrow.Field) (an
 	structType := arrowField.Type.(*arrow.StructType)
 	messageFields := message.Descriptor().Fields()
 	result := make(map[string]any, structType.NumFields())
-	for index := 0; index < structType.NumFields(); index++ {
+	for index := range structType.NumFields() {
 		child := structType.Field(index)
 		converted, err := protoColumnValue(message, messageFields.Get(index), child)
 		if err != nil {
@@ -303,7 +304,7 @@ func protoPopulateMessage(message protoreflect.Message, arrowField arrow.Field, 
 	}
 	structType := arrowField.Type.(*arrow.StructType)
 	messageFields := message.Descriptor().Fields()
-	for index := 0; index < structType.NumFields(); index++ {
+	for index := range structType.NumFields() {
 		child := structType.Field(index)
 		if err := protoSetColumn(message, messageFields.Get(index), child, struct_[child.Name]); err != nil {
 			return err

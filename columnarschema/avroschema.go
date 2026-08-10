@@ -2,7 +2,8 @@ package columnarschema
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -47,7 +48,7 @@ func avroTopLevelFields(schema avro.Schema) ([]arrow.Field, error) {
 func avroField(name string, schema avro.Schema, nullable bool, visiting []string) (arrow.Field, error) {
 	if ref, ok := schema.(*avro.RefSchema); ok {
 		target := ref.Schema()
-		if record, ok := target.(*avro.RecordSchema); ok && contains(visiting, record.FullName()) {
+		if record, ok := target.(*avro.RecordSchema); ok && slices.Contains(visiting, record.FullName()) {
 			return taggedField(name, arrow.BinaryTypes.String, nullable,
 				map[string]string{MetadataJSON: "true"}), nil
 		}
@@ -108,7 +109,7 @@ func avroField(name string, schema avro.Schema, nullable bool, visiting []string
 			MetadataAvroEnumSymbols: strings.Join(typed.Symbols(), ","),
 		}), nil
 	case *avro.RecordSchema:
-		if contains(visiting, typed.FullName()) {
+		if slices.Contains(visiting, typed.FullName()) {
 			return taggedField(name, arrow.BinaryTypes.String, nullable,
 				map[string]string{MetadataJSON: "true"}), nil
 		}
@@ -246,11 +247,7 @@ func taggedField(name string, dataType arrow.DataType, nullable bool, metadata m
 }
 
 func buildMetadata(pairs map[string]string) arrow.Metadata {
-	keys := make([]string, 0, len(pairs))
-	for key := range pairs {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(pairs))
 	values := make([]string, len(keys))
 	for i, key := range keys {
 		values[i] = pairs[key]
@@ -259,10 +256,5 @@ func buildMetadata(pairs map[string]string) arrow.Metadata {
 }
 
 func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

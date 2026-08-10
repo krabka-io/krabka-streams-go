@@ -109,7 +109,7 @@ func (b *JSONRowBridge[T]) RowsToBatch(rows []T, mem memory.Allocator) (arrow.Re
 func (b *JSONRowBridge[T]) BatchToRows(batch arrow.Record) ([]T, error) {
 	rows := make([]T, 0, batch.NumRows())
 	var zero T
-	for row := 0; row < int(batch.NumRows()); row++ {
+	for row := range int(batch.NumRows()) {
 		var document []byte
 		if b.scalar {
 			value, err := readJSONValue(batch.Column(0), batch.Schema().Field(0), row)
@@ -120,7 +120,7 @@ func (b *JSONRowBridge[T]) BatchToRows(batch arrow.Record) ([]T, error) {
 		} else {
 			var object bytes.Buffer
 			object.WriteByte('{')
-			for column := 0; column < int(batch.NumCols()); column++ {
+			for column := range int(batch.NumCols()) {
 				field := batch.Schema().Field(column)
 				value, err := readJSONValue(batch.Column(column), field, row)
 				if err != nil {
@@ -454,7 +454,7 @@ func resolveJSONSchemaRef(declaration rawObject, root rawObject) (rawObject, err
 	}
 	current := declaration
 	node := root
-	for _, step := range strings.Split(strings.TrimPrefix(reference, "#/"), "/") {
+	for step := range strings.SplitSeq(strings.TrimPrefix(reference, "#/"), "/") {
 		value, ok := node.values[step]
 		if !ok {
 			return current, fmt.Errorf("unresolved JSON Schema reference %s", reference)

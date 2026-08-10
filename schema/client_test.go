@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -18,7 +17,7 @@ func TestRegistersAvroWithoutSchemaType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	id, err := client.Register(context.Background(), "orders-value", KindAvro, `"string"`, "")
+	id, err := client.Register(t.Context(), "orders-value", KindAvro, `"string"`, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,10 +48,10 @@ func TestSendsProtobufMetadataAndReadsLatest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := client.Register(context.Background(), "orders-value", KindProtobuf, `syntax = "proto3";`, "demo.Order"); err != nil {
+	if _, err := client.Register(t.Context(), "orders-value", KindProtobuf, `syntax = "proto3";`, "demo.Order"); err != nil {
 		t.Fatal(err)
 	}
-	latest, err := client.Latest(context.Background(), "orders-value")
+	latest, err := client.Latest(t.Context(), "orders-value")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +81,7 @@ func TestReportsRegistryStatusAndBody(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = client.SchemaByID(context.Background(), 7)
+	_, err = client.SchemaByID(t.Context(), 7)
 
 	var registryFailure *RegistryError
 	if !errors.As(err, &registryFailure) {
@@ -108,7 +107,7 @@ func TestPreservesContextPathAndSupportsRegistryManagement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	subjects, err := client.Subjects(ctx)
 	if err != nil || !reflect.DeepEqual(subjects, []string{"orders-value"}) {
@@ -141,7 +140,7 @@ func TestRetriesServerErrorsAndTransportFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = client.Subjects(context.Background())
+	_, err = client.Subjects(t.Context())
 
 	var registryFailure *RegistryError
 	if !errors.As(err, &registryFailure) || registryFailure.StatusCode != 500 {

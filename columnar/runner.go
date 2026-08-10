@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -142,9 +143,7 @@ func RunPartitionOnce(ctx context.Context, topology *BuiltTopology, consumer Con
 	}
 	nextOffset := offset
 	for _, record := range records {
-		if record.Offset+1 > nextOffset {
-			nextOffset = record.Offset + 1
-		}
+		nextOffset = max(nextOffset, record.Offset+1)
 	}
 	prior, err := priorStateOf(topology, partition)
 	if err != nil {
@@ -265,11 +264,7 @@ func processPoll(ctx context.Context, topology *BuiltTopology, consumer Consumer
 		partitionInput[topicPartition.Topic] = normalized
 		offsets[topicPartition] = normalized[len(normalized)-1].Offset + 1
 	}
-	partitions := make([]int, 0, len(byPartition))
-	for partition := range byPartition {
-		partitions = append(partitions, partition)
-	}
-	sort.Ints(partitions)
+	partitions := slices.Sorted(maps.Keys(byPartition))
 
 	var outputs []ProducedToTopic
 	prior := map[int]priorState{}

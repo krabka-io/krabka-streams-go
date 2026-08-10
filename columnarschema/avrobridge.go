@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -83,7 +84,7 @@ func (b *AvroRowBridge) BatchToRows(batch arrow.Record) ([]any, error) {
 		}
 		columns[column] = batch.Column(indices[0])
 	}
-	for row := 0; row < int(batch.NumRows()); row++ {
+	for row := range int(batch.NumRows()) {
 		record := make(map[string]any, len(b.fields))
 		for column, field := range b.fields {
 			value, err := avroFromArrow(
@@ -392,7 +393,7 @@ func unwrapUnion(value any, names []string) (string, any, error) {
 	wrapped, ok := value.(map[string]any)
 	if ok && len(wrapped) == 1 {
 		for key, branchValue := range wrapped {
-			if contains(names, key) {
+			if slices.Contains(names, key) {
 				return key, branchValue, nil
 			}
 		}
@@ -492,7 +493,7 @@ func toFixedArray(value any, size int) (any, error) {
 	if !ok || len(data) != size {
 		return nil, fmt.Errorf("cannot convert %T to an Avro fixed of size %d", value, size)
 	}
-	arrayType := reflect.ArrayOf(size, reflect.TypeOf(byte(0)))
+	arrayType := reflect.ArrayOf(size, reflect.TypeFor[byte]())
 	result := reflect.New(arrayType).Elem()
 	for i, item := range data {
 		result.Index(i).Set(reflect.ValueOf(item))
@@ -580,7 +581,7 @@ func writeAvroJSON(buffer *bytes.Buffer, value any, schema avro.Schema) error {
 		}
 		buffer.WriteByte('{')
 		first := true
-		for _, key := range sortedMapKeys(entries) {
+		for _, key := range slices.Sorted(maps.Keys(entries)) {
 			if !first {
 				buffer.WriteByte(',')
 			}
@@ -797,13 +798,3 @@ func avroJSONBytes(document any) ([]byte, error) {
 	}
 	return result, nil
 }
-
-func sortedMapKeys(entries map[string]any) []string {
-	keys := make([]string, 0, len(entries))
-	for key := range entries {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-

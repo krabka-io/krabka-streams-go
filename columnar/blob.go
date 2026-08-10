@@ -167,7 +167,7 @@ func blobKey(batch arrow.Record, row int) []byte {
 	if !ok || keys.IsNull(row) {
 		return nil
 	}
-	return append([]byte{}, keys.Value(row)...)
+	return bytes.Clone(keys.Value(row))
 }
 
 func blobTimestamp(batch arrow.Record, row int) int64 {

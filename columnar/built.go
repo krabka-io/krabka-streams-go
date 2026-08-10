@@ -1,8 +1,10 @@
 package columnar
 
 import (
+	"bytes"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -43,11 +45,7 @@ func (b *BuiltTopology) RunBatches(input map[string][]ConsumedRecord) ([]Produce
 			partitionSet[record.Partition] = true
 		}
 	}
-	partitions := make([]int, 0, len(partitionSet))
-	for partition := range partitionSet {
-		partitions = append(partitions, partition)
-	}
-	sort.Ints(partitions)
+	partitions := slices.Sorted(maps.Keys(partitionSet))
 	var result []ProducedToTopic
 	for _, partition := range partitions {
 		partitionInput := map[string][]ConsumedRecord{}
@@ -117,7 +115,7 @@ func (b *BuiltTopology) runPartition(partition int, input map[string][]ConsumedR
 			if needsDecodedFrame {
 				for _, topic := range sortedTopics(input) {
 					records := input[topic]
-					if len(records) > 0 && containsString(node.sourceTopics, topic) {
+					if len(records) > 0 && slices.Contains(node.sourceTopics, topic) {
 						batch, err := node.sourceCodec.Decode(topic, records)
 						if err != nil {
 							return nil, err
@@ -152,7 +150,7 @@ func (b *BuiltTopology) runPartition(partition int, input map[string][]ConsumedR
 			if node.sinkCodec == nil {
 				parent := nodes[node.parents[0].index]
 				for _, topic := range sortedTopics(input) {
-					if containsString(parent.sourceTopics, topic) {
+					if slices.Contains(parent.sourceTopics, topic) {
 						for _, record := range input[topic] {
 							produced = append(produced, ProducedToTopic{
 								Topic: node.sinkTopic,
@@ -243,7 +241,7 @@ func (b *BuiltTopology) snapshotPartitionLocked(partition int) (map[string][]byt
 			if err != nil {
 				return nil, err
 			}
-			snapshots[b.topology.nodes[index].name] = append([]byte{}, snapshot...)
+			snapshots[b.topology.nodes[index].name] = bytes.Clone(snapshot)
 		}
 	}
 	return snapshots, nil
@@ -262,14 +260,9 @@ func (b *BuiltTopology) restorePartitionLocked(partition int, snapshots map[stri
 	for index, processor := range b.partitionProcessors(partition) {
 		byName[b.topology.nodes[index].name] = processor
 	}
-	names := make([]string, 0, len(snapshots))
-	for name := range snapshots {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(snapshots)) {
 		if stateful, ok := byName[name].(StatefulProcessor); ok {
-			if err := stateful.Restore(append([]byte{}, snapshots[name]...)); err != nil {
+			if err := stateful.Restore(bytes.Clone(snapshots[name])); err != nil {
 				return err
 			}
 		}
@@ -322,19 +315,5 @@ func (b *BuiltTopology) partitionProcessors(partition int) map[int]Processor {
 }
 
 func sortedTopics(input map[string][]ConsumedRecord) []string {
-	topics := make([]string, 0, len(input))
-	for topic := range input {
-		topics = append(topics, topic)
-	}
-	sort.Strings(topics)
-	return topics
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Sorted(maps.Keys(input))
 }

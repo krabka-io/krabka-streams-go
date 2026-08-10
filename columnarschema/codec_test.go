@@ -150,8 +150,7 @@ func TestUnknownWriterSchemaIDsSurfaceTheRetriablePendingFetch(t *testing.T) {
 	_, err = codec.Decode("orders", []columnar.ConsumedRecord{
 		columnar.NewConsumedRecord(nil, unknown, 1, 0, 0)})
 
-	var pending *registry.FetchPendingError
-	if !errors.As(err, &pending) {
+	if _, ok := errors.AsType[*registry.FetchPendingError](err); !ok {
 		t.Fatalf("expected the retriable pending fetch, got %v", err)
 	}
 }
@@ -160,16 +159,16 @@ func everythingDescriptor(t *testing.T) protoreflect.MessageDescriptor {
 	t.Helper()
 	scalar := func(name string, number int32, kind descriptorpb.FieldDescriptorProto_Type) *descriptorpb.FieldDescriptorProto {
 		return &descriptorpb.FieldDescriptorProto{
-			Name:     proto.String(name),
-			Number:   proto.Int32(number),
+			Name:     new(name),
+			Number:   new(number),
 			Type:     kind.Enum(),
 			Label:    descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
-			JsonName: proto.String(name),
+			JsonName: new(name),
 		}
 	}
 	message := func(name string, number int32, typeName string) *descriptorpb.FieldDescriptorProto {
 		field := scalar(name, number, descriptorpb.FieldDescriptorProto_TYPE_MESSAGE)
-		field.TypeName = proto.String(typeName)
+		field.TypeName = new(typeName)
 		return field
 	}
 	repeated := func(field *descriptorpb.FieldDescriptorProto) *descriptorpb.FieldDescriptorProto {
@@ -181,40 +180,40 @@ func everythingDescriptor(t *testing.T) protoreflect.MessageDescriptor {
 		return field
 	}
 	file := &descriptorpb.FileDescriptorProto{
-		Name:    proto.String("krabka_test.proto"),
-		Package: proto.String("krabka.test"),
-		Syntax:  proto.String("proto3"),
+		Name:    new("krabka_test.proto"),
+		Package: new("krabka.test"),
+		Syntax:  new("proto3"),
 		Dependency: []string{
 			"google/protobuf/timestamp.proto",
 			"google/protobuf/wrappers.proto",
 			"google/protobuf/struct.proto",
 		},
 		EnumType: []*descriptorpb.EnumDescriptorProto{{
-			Name: proto.String("Color"),
+			Name: new("Color"),
 			Value: []*descriptorpb.EnumValueDescriptorProto{
-				{Name: proto.String("RED"), Number: proto.Int32(0)},
-				{Name: proto.String("BLUE"), Number: proto.Int32(1)},
+				{Name: new("RED"), Number: proto.Int32(0)},
+				{Name: new("BLUE"), Number: proto.Int32(1)},
 			},
 		}},
 		MessageType: []*descriptorpb.DescriptorProto{
 			{
-				Name: proto.String("Child"),
+				Name: new("Child"),
 				Field: []*descriptorpb.FieldDescriptorProto{
 					scalar("name", 1, descriptorpb.FieldDescriptorProto_TYPE_STRING),
 					message("next", 2, ".krabka.test.Child"),
 				},
 			},
 			{
-				Name: proto.String("Everything"),
+				Name: new("Everything"),
 				NestedType: []*descriptorpb.DescriptorProto{{
-					Name:    proto.String("LabelsEntry"),
-					Options: &descriptorpb.MessageOptions{MapEntry: proto.Bool(true)},
+					Name:    new("LabelsEntry"),
+					Options: &descriptorpb.MessageOptions{MapEntry: new(true)},
 					Field: []*descriptorpb.FieldDescriptorProto{
 						scalar("key", 1, descriptorpb.FieldDescriptorProto_TYPE_STRING),
 						scalar("value", 2, descriptorpb.FieldDescriptorProto_TYPE_INT64),
 					},
 				}},
-				OneofDecl: []*descriptorpb.OneofDescriptorProto{{Name: proto.String("either")}},
+				OneofDecl: []*descriptorpb.OneofDescriptorProto{{Name: new("either")}},
 				Field: []*descriptorpb.FieldDescriptorProto{
 					scalar("id", 1, descriptorpb.FieldDescriptorProto_TYPE_STRING),
 					scalar("count", 2, descriptorpb.FieldDescriptorProto_TYPE_INT32),
@@ -225,7 +224,7 @@ func everythingDescriptor(t *testing.T) protoreflect.MessageDescriptor {
 					scalar("payload", 7, descriptorpb.FieldDescriptorProto_TYPE_BYTES),
 					func() *descriptorpb.FieldDescriptorProto {
 						field := scalar("color", 8, descriptorpb.FieldDescriptorProto_TYPE_ENUM)
-						field.TypeName = proto.String(".krabka.test.Color")
+						field.TypeName = new(".krabka.test.Color")
 						return field
 					}(),
 					message("chld", 9, ".krabka.test.Child"),

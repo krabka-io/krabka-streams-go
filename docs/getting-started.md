@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Go 1.25 or newer.
+- Go 1.26 or newer.
 - A krabka broker (or any Apache Kafka 4.x cluster) if you run the group
   runner; the serdes and columnar runtime themselves need no broker.
 - A Confluent-compatible schema registry for the `schema` and

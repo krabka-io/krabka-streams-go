@@ -11,6 +11,8 @@
 // take typed options instead can use the exported constants directly.
 package krabkastreams
 
+import "maps"
+
 // GroupProtocolConfig is the Kafka client configuration key that selects the
 // group protocol.
 const GroupProtocolConfig = "group.protocol"
@@ -27,9 +29,7 @@ const StreamsGroupProtocol = "streams"
 // treated as empty.
 func WithDefaults(settings map[string]any) map[string]any {
 	result := make(map[string]any, len(settings)+1)
-	for key, value := range settings {
-		result[key] = value
-	}
+	maps.Copy(result, settings)
 	if _, ok := result[GroupProtocolConfig]; !ok {
 		result[GroupProtocolConfig] = StreamsGroupProtocol
 	}

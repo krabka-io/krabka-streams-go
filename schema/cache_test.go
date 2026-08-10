@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -15,7 +14,7 @@ func TestAutoRegisterUsesVersionsEndpoint(t *testing.T) {
 	cache := newTestCache(t, stub)
 	cache.Intern("orders-value", KindAvro, `"string"`, "")
 
-	if err := cache.Prewarm(context.Background()); err != nil {
+	if err := cache.Prewarm(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -38,7 +37,7 @@ func TestLookupOnlyUsesSubjectEndpoint(t *testing.T) {
 	cache := NewSchemaCache(client, WithRegisterMode(LookupOnly))
 	cache.Intern("orders-value", KindJSON, `{"type":"object"}`, "")
 
-	if err := cache.Prewarm(context.Background()); err != nil {
+	if err := cache.Prewarm(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +61,7 @@ func TestUseLatestKeepsRegistryMessageType(t *testing.T) {
 	cache := NewSchemaCache(client, WithRegisterMode(UseLatest))
 	cache.Intern("orders-value", KindProtobuf, `syntax = "proto3";`, "demo.Local")
 
-	if err := cache.Prewarm(context.Background()); err != nil {
+	if err := cache.Prewarm(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -121,7 +120,7 @@ func TestPrewarmReportsPartialSuccess(t *testing.T) {
 	cache.Intern("good-value", KindAvro, `"string"`, "")
 	cache.Intern("bad-value", KindAvro, `"string"`, "")
 
-	report := cache.PrewarmReport(context.Background())
+	report := cache.PrewarmReport(t.Context())
 
 	if !reflect.DeepEqual(report.Resolved, map[string]int{"good-value": 8}) {
 		t.Fatalf("unexpected resolved map %v", report.Resolved)

@@ -148,7 +148,7 @@ func readTimedBatches(reader *valueReader) ([]timedBatch, error) {
 		return nil, err
 	}
 	batches := make([]timedBatch, 0, count)
-	for i := uint32(0); i < count; i++ {
+	for range count {
 		maxTimestamp, err := reader.uint64()
 		if err != nil {
 			return nil, err
@@ -201,7 +201,7 @@ func (p *statefulJoinProcessor) addMatches(leftBatch, rightBatch arrow.Record, o
 	var pairs []rowPair
 	// The nested scan is bounded by the join window; add a hash index if
 	// profiling demands it.
-	for leftRow := 0; leftRow < int(leftBatch.NumRows()); leftRow++ {
+	for leftRow := range int(leftBatch.NumRows()) {
 		leftKey := arrowValue(leftKeys, leftRow)
 		if leftKey == nil {
 			continue
@@ -210,7 +210,7 @@ func (p *statefulJoinProcessor) addMatches(leftBatch, rightBatch arrow.Record, o
 		if err != nil {
 			return err
 		}
-		for rightRow := 0; rightRow < int(rightBatch.NumRows()); rightRow++ {
+		for rightRow := range int(rightBatch.NumRows()) {
 			rightKey := arrowValue(rightKeys, rightRow)
 			if rightKey == nil {
 				continue
@@ -253,9 +253,9 @@ func (p *statefulJoinProcessor) advanceStreamTime(batch arrow.Record) error {
 	if err != nil {
 		return err
 	}
-	for row := 0; row < int(batch.NumRows()); row++ {
-		if !timestamps.IsNull(row) && timestamps.Value(row) > p.streamTime {
-			p.streamTime = timestamps.Value(row)
+	for row := range int(batch.NumRows()) {
+		if !timestamps.IsNull(row) {
+			p.streamTime = max(p.streamTime, timestamps.Value(row))
 		}
 	}
 	return nil
@@ -278,9 +278,9 @@ func (p *statefulJoinProcessor) stored(batch arrow.Record) (timedBatch, error) {
 	if err != nil {
 		return timedBatch{}, err
 	}
-	for row := 0; row < int(batch.NumRows()); row++ {
-		if !timestamps.IsNull(row) && timestamps.Value(row) > maximum {
-			maximum = timestamps.Value(row)
+	for row := range int(batch.NumRows()) {
+		if !timestamps.IsNull(row) {
+			maximum = max(maximum, timestamps.Value(row))
 		}
 	}
 	data, err := p.serde.serialize(batch)

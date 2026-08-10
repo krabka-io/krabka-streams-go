@@ -1,6 +1,9 @@
 package columnarschema
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/apache/arrow-go/v18/arrow"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -39,7 +42,7 @@ func ProtobufArrowField(field protoreflect.FieldDescriptor) arrow.Field {
 func protoTopLevelFields(descriptor protoreflect.MessageDescriptor) []arrow.Field {
 	fields := descriptor.Fields()
 	result := make([]arrow.Field, 0, fields.Len())
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		result = append(result, protoField(fields.Get(i), []string{string(descriptor.FullName())}))
 	}
 	return result
@@ -103,7 +106,7 @@ func protoMessageField(name string, message protoreflect.MessageDescriptor, visi
 	if wrapped, ok := protoWrappers[fullName]; ok {
 		return taggedField(name, wrapped, false, map[string]string{MetadataProtoWrapper: fullName})
 	}
-	if protoJSONFallback[fullName] || contains(visiting, fullName) {
+	if protoJSONFallback[fullName] || slices.Contains(visiting, fullName) {
 		return taggedField(name, arrow.BinaryTypes.String, false, map[string]string{
 			MetadataJSON:         "true",
 			MetadataProtoMessage: fullName,
@@ -112,7 +115,7 @@ func protoMessageField(name string, message protoreflect.MessageDescriptor, visi
 	visiting = append(visiting, fullName)
 	fields := message.Fields()
 	children := make([]arrow.Field, 0, fields.Len())
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		children = append(children, protoField(fields.Get(i), visiting))
 	}
 	return arrow.Field{Name: name, Type: arrow.StructOf(children...)}
@@ -134,9 +137,7 @@ func oneofMetadata(field protoreflect.FieldDescriptor, pairs map[string]string) 
 		return buildMetadata(pairs)
 	}
 	result := map[string]string{MetadataProtoOneof: string(oneof.Name())}
-	for key, value := range pairs {
-		result[key] = value
-	}
+	maps.Copy(result, pairs)
 	return buildMetadata(result)
 }
 

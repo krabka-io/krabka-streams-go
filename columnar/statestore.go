@@ -3,9 +3,10 @@ package columnar
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"sync/atomic"
 )
 
@@ -61,7 +62,7 @@ func (s *FileStateStore) Load(partition int) (map[string][]byte, error) {
 		return nil, fmt.Errorf("cannot load partition %d state: %w", partition, err)
 	}
 	result := make(map[string][]byte, count)
-	for i := uint32(0); i < count; i++ {
+	for range count {
 		name, err := reader.sized()
 		if err != nil {
 			return nil, fmt.Errorf("cannot load partition %d state: %w", partition, err)
@@ -87,12 +88,7 @@ func (s *FileStateStore) Save(partition int, snapshot map[string][]byte) error {
 	var buffer []byte
 	buffer = binary.BigEndian.AppendUint32(buffer, fileStateStoreVersion)
 	buffer = binary.BigEndian.AppendUint32(buffer, uint32(len(snapshot)))
-	names := make([]string, 0, len(snapshot))
-	for name := range snapshot {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(snapshot)) {
 		buffer = appendSized(buffer, []byte(name))
 		buffer = appendSized(buffer, snapshot[name])
 	}

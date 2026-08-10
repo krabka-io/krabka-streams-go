@@ -1,12 +1,14 @@
 package columnar
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"math"
 	"math/big"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,12 +54,7 @@ func PayloadColumn(name string) string {
 }
 
 func isReserved(name string) bool {
-	for _, reserved := range reservedColumns {
-		if name == reserved {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(reservedColumns, name)
 }
 
 func rejectReservedPayloadColumns(names []string) error {
@@ -95,7 +92,7 @@ func withMetadata(payload arrow.Record, metadata []rowMetadata, mem memory.Alloc
 	}
 	fields := make([]arrow.Field, 0, payload.Schema().NumFields()+5)
 	columns := make([]arrow.Array, 0, cap(fields))
-	for i := 0; i < payload.Schema().NumFields(); i++ {
+	for i := range payload.Schema().NumFields() {
 		fields = append(fields, escapedPayloadField(payload.Schema().Field(i)))
 		columns = append(columns, payload.Column(i))
 	}
@@ -176,7 +173,7 @@ func concatenate(batches []arrow.Record, mem memory.Allocator) (arrow.Record, er
 func payloadOnly(root arrow.Record) arrow.Record {
 	var fields []arrow.Field
 	var columns []arrow.Array
-	for i := 0; i < root.Schema().NumFields(); i++ {
+	for i := range root.Schema().NumFields() {
 		field := root.Schema().Field(i)
 		if isReserved(field.Name) {
 			continue
@@ -222,7 +219,7 @@ func columnByName(root arrow.Record, name string) arrow.Array {
 func copyRows(root arrow.Record, rows []int, mem memory.Allocator) (arrow.Record, error) {
 	builder := array.NewRecordBuilder(mem, root.Schema())
 	defer builder.Release()
-	for column := 0; column < int(root.NumCols()); column++ {
+	for column := range int(root.NumCols()) {
 		source := root.Column(column)
 		target := builder.Field(column)
 		for _, row := range rows {
@@ -253,7 +250,7 @@ func joinRows(left, right arrow.Record, pairs []rowPair, leftPrefix, rightPrefix
 	}
 	var fields []arrow.Field
 	var sources []sourceColumn
-	for i := 0; i < left.Schema().NumFields(); i++ {
+	for i := range left.Schema().NumFields() {
 		field := left.Schema().Field(i)
 		if isReserved(field.Name) {
 			continue
@@ -261,7 +258,7 @@ func joinRows(left, right arrow.Record, pairs []rowPair, leftPrefix, rightPrefix
 		fields = append(fields, prefixedPayloadField(field, leftPrefix))
 		sources = append(sources, sourceColumn{arr: left.Column(i), side: 0})
 	}
-	for i := 0; i < right.Schema().NumFields(); i++ {
+	for i := range right.Schema().NumFields() {
 		field := right.Schema().Field(i)
 		if isReserved(field.Name) {
 			continue
@@ -349,7 +346,7 @@ func decodeHeaders(data []byte) ([]RecordHeader, error) {
 		if int32(len(data)) < length {
 			return nil, fmt.Errorf("truncated Kafka headers")
 		}
-		value := append([]byte{}, data[:length]...)
+		value := bytes.Clone(data[:length])
 		data = data[length:]
 		return value, nil
 	}
@@ -361,7 +358,7 @@ func decodeHeaders(data []byte) ([]RecordHeader, error) {
 		return nil, fmt.Errorf("invalid Kafka header count")
 	}
 	result := make([]RecordHeader, 0, count)
-	for index := int32(0); index < count; index++ {
+	for range count {
 		keyLength, err := readInt()
 		if err != nil {
 			return nil, err
@@ -427,11 +424,7 @@ func fieldMetadataMap(field arrow.Field) map[string]string {
 }
 
 func renamedField(field arrow.Field, name string, metadata map[string]string) arrow.Field {
-	keys := make([]string, 0, len(metadata))
-	for key := range metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(metadata))
 	values := make([]string, len(keys))
 	for i, key := range keys {
 		values[i] = metadata[key]
@@ -465,11 +458,11 @@ func arrowValue(arr arrow.Array, row int) any {
 	case *array.LargeString:
 		return typed.Value(row)
 	case *array.Binary:
-		return append([]byte{}, typed.Value(row)...)
+		return bytes.Clone(typed.Value(row))
 	case *array.LargeBinary:
-		return append([]byte{}, typed.Value(row)...)
+		return bytes.Clone(typed.Value(row))
 	case *array.FixedSizeBinary:
-		return append([]byte{}, typed.Value(row)...)
+		return bytes.Clone(typed.Value(row))
 	case *array.Int8:
 		return typed.Value(row)
 	case *array.Int16:
@@ -520,7 +513,7 @@ func arrowValue(arr arrow.Array, row int) any {
 	case *array.Struct:
 		structType := typed.DataType().(*arrow.StructType)
 		result := make(map[string]any, typed.NumField())
-		for i := 0; i < typed.NumField(); i++ {
+		for i := range typed.NumField() {
 			result[structType.Field(i).Name] = arrowValue(typed.Field(i), row)
 		}
 		return result
@@ -742,7 +735,7 @@ func appendGoValue(builder array.Builder, value any) error {
 		}
 		structType := typed.Type().(*arrow.StructType)
 		typed.Append(true)
-		for i := 0; i < typed.NumField(); i++ {
+		for i := range typed.NumField() {
 			if err := appendGoValue(typed.FieldBuilder(i), values[structType.Field(i).Name]); err != nil {
 				return err
 			}
@@ -753,12 +746,7 @@ func appendGoValue(builder array.Builder, value any) error {
 			return fmt.Errorf("cannot write %T into a map column", value)
 		}
 		typed.Append(true)
-		keys := make([]string, 0, len(values))
-		for key := range values {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
+		for _, key := range slices.Sorted(maps.Keys(values)) {
 			if err := appendGoValue(typed.KeyBuilder(), key); err != nil {
 				return err
 			}

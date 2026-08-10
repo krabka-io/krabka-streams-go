@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "columnarschema",
+    srcs = [
+        "avrobridge.go",
+        "avrocodec.go",
+        "avroschema.go",
+        "metadata.go",
+        "protobridge.go",
+        "protocodec.go",
+        "protoschema.go",
+    ],
+    importpath = "github.com/krabka-io/krabka-streams-go/columnarschema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//columnar",
+        "//schema",
+        "@com_github_apache_arrow_go_v18//arrow",
+        "@com_github_apache_arrow_go_v18//arrow/array",
+        "@com_github_apache_arrow_go_v18//arrow/memory",
+        "@com_github_hamba_avro_v2//:avro",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+    ],
+)
+
+go_test(
+    name = "columnarschema_test",
+    srcs = [
+        "avrobridge_test.go",
+        "codec_test.go",
+    ],
+    embed = [":columnarschema"],
+    deps = [
+        "//columnar",
+        "//schema",
+        "@com_github_apache_arrow_go_v18//arrow/array",
+        "@com_github_apache_arrow_go_v18//arrow/memory",
+        "@com_github_hamba_avro_v2//:avro",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protodesc",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//reflect/protoregistry",
+        "@org_golang_google_protobuf//types/descriptorpb",
+        "@org_golang_google_protobuf//types/dynamicpb",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_google_protobuf//types/known/wrapperspb",
+    ],
+)

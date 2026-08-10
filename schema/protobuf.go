@@ -54,7 +54,9 @@ func NewProtobufSerde[T proto.Message](prototype T, cache *SchemaCache, role Rol
 }
 
 func (s *ProtobufSerde[T]) serializeBody(value T) ([]byte, error) {
-	return proto.Marshal(value)
+	// Deterministic marshaling orders fields by number, matching the byte
+	// layout of Java's Message.toByteArray, so round trips are stable.
+	return proto.MarshalOptions{Deterministic: true}.Marshal(value)
 }
 
 func (s *ProtobufSerde[T]) deserializeBody(schemaID int, body []byte) (T, error) {

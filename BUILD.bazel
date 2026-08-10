@@ -1,0 +1,18 @@
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:prefix github.com/krabka-io/krabka-streams-go
+gazelle(name = "gazelle")
+
+go_library(
+    name = "krabka-streams-go",
+    srcs = ["krabkastreams.go"],
+    importpath = "github.com/krabka-io/krabka-streams-go",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "krabka-streams-go_test",
+    srcs = ["krabkastreams_test.go"],
+    embed = [":krabka-streams-go"],
+)

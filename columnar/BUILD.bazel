@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "columnar",
+    srcs = [
+        "blob.go",
+        "built.go",
+        "codec.go",
+        "gzip.go",
+        "ipc.go",
+        "join.go",
+        "jsonbridge.go",
+        "ops.go",
+        "records.go",
+        "rowcodec.go",
+        "runner.go",
+        "statestore.go",
+        "support.go",
+        "topology.go",
+        "values.go",
+    ],
+    importpath = "github.com/krabka-io/krabka-streams-go/columnar",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_apache_arrow_go_v18//arrow",
+        "@com_github_apache_arrow_go_v18//arrow/array",
+        "@com_github_apache_arrow_go_v18//arrow/decimal128",
+        "@com_github_apache_arrow_go_v18//arrow/decimal256",
+        "@com_github_apache_arrow_go_v18//arrow/ipc",
+        "@com_github_apache_arrow_go_v18//arrow/memory",
+    ],
+)
+
+go_test(
+    name = "columnar_test",
+    srcs = [
+        "ipc_blob_test.go",
+        "ops_topology_test.go",
+        "rowcodec_jsonbridge_test.go",
+        "runner_test.go",
+        "stateful_test.go",
+        "testdata_test.go",
+    ],
+    embed = [":columnar"],
+    deps = [
+        "@com_github_apache_arrow_go_v18//arrow",
+        "@com_github_apache_arrow_go_v18//arrow/array",
+        "@com_github_apache_arrow_go_v18//arrow/memory",
+    ],
+)

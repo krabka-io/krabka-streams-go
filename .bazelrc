@@ -1,0 +1,10 @@
+try-import %workspace%/user.bazelrc
+
+common --enable_platform_specific_config
+
+build:remote --bes_results_url=https://app.buildbuddy.io/invocation/
+build:remote --bes_backend=grpcs://remote.buildbuddy.io
+build:remote --remote_cache=grpcs://remote.buildbuddy.io
+build:remote --remote_timeout=10m
+build:remote --remote_download_minimal
+build:remote --remote_cache_compression

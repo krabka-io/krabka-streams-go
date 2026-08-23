@@ -2,6 +2,11 @@ try-import %workspace%/user.bazelrc
 
 common --enable_platform_specific_config
 
+# Fail rather than fall back. With the hermetic toolchain registered in
+# MODULE.bazel, any resolution that still reaches for the host's compiler is a
+# bug worth seeing, not something to paper over silently.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+
 build:remote --bes_results_url=https://app.buildbuddy.io/invocation/
 build:remote --bes_backend=grpcs://remote.buildbuddy.io
 build:remote --remote_cache=grpcs://remote.buildbuddy.io

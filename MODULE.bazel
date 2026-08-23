@@ -6,6 +6,18 @@ module(
 bazel_dep(name = "rules_go", version = "0.62.0")
 bazel_dep(name = "gazelle", version = "0.52.2")
 
+# A hermetic C++ toolchain rather than the host's.
+#
+# Nothing here is cgo today, but rules_go still resolves a C++ toolchain to
+# link with, and without one registered that resolution lands on whatever the
+# machine happens to carry -- a different compiler and linker on a developer's
+# laptop than on the runner. Registering hermetic-llvm makes a local build and
+# a CI build the same build, and matches what the Rust repositories in this
+# organisation already do.
+bazel_dep(name = "llvm", version = "0.8.18")
+
+register_toolchains("@llvm//toolchain:all")
+
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.26.5")
 

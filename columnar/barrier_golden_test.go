@@ -7,8 +7,8 @@ import (
 
 // The cut wire format is frozen across krabka-broker, krabka-streams-rs,
 // krabka-streams-java and this package. These bytes are encoded straight from
-// the specification in the broker's barrier design document, independently of
-// any of the four implementations, so a decoder that drifts fails here.
+// the layout the broker's barrier modules document, independently of any of
+// the four implementations, so a decoder that drifts fails here.
 //
 // Key:   version 0, kind 2 (cut), group "orders-cut", epoch 7.
 // Value: version 0, triggered 1724500000000, completed 1724500000042,

@@ -3,6 +3,9 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "columnar",
     srcs = [
+        "barrier.go",
+        "barrieralign.go",
+        "barriercut.go",
         "blob.go",
         "built.go",
         "codec.go",
@@ -34,6 +37,9 @@ go_library(
 go_test(
     name = "columnar_test",
     srcs = [
+        "barrier_test.go",
+        "barrieralign_test.go",
+        "barriercut_test.go",
         "example_test.go",
         "ipc_blob_test.go",
         "ops_topology_test.go",

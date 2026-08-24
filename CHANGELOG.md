@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `columnar`: barrier-aligned, epoch-keyed state snapshots. `CutReader` reads
+  the cut manifests a krabka broker publishes on `__barrier_state`,
+  `WithBarrierGroup` aligns a group runner on each complete cut, and the
+  runner snapshots every partition at the cut and commits the cut offsets.
+  `RestoreToEpoch` and `RestoreToLatestCut` put a runner back at a cut. A
+  barrier commit rides inside the transaction of `RunOnceTransactional`.
+- `columnar`: **breaking.** `StateStore.Load` and `StateStore.Save` take the
+  epoch of the cut beside the partition. A snapshot outside a barrier uses
+  the `NoEpoch` key. The container inside a snapshot does not change.
+
 ## 0.1.0
 
 Initial release, porting `krabka-streams-java` 1.2.0 to Go:

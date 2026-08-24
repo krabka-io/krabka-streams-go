@@ -10,13 +10,22 @@ import (
 	"sync/atomic"
 )
 
-// StateStore persists partition snapshots across rebalances and restarts.
-type StateStore interface {
-	// Load returns the saved snapshot of a partition, empty when none exists.
-	Load(partition int) (map[string][]byte, error)
+// NoEpoch keys the snapshot a runner saves outside a barrier, such as the
+// one it writes when a rebalance revokes a partition. A barrier keys its
+// snapshot by the epoch of the cut instead.
+const NoEpoch int64 = -1
 
-	// Save persists the snapshot of a partition.
-	Save(partition int, snapshot map[string][]byte) error
+// StateStore persists partition snapshots across rebalances and restarts.
+// The key of a snapshot is the partition and the epoch, so the snapshots a
+// barrier group takes at its cuts stay apart from each other and from the
+// [NoEpoch] snapshot of a rebalance.
+type StateStore interface {
+	// Load returns the saved snapshot of a partition at an epoch, empty when
+	// none exists.
+	Load(partition int, epoch int64) (map[string][]byte, error)
+
+	// Save persists the snapshot of a partition at an epoch.
+	Save(partition int, epoch int64, snapshot map[string][]byte) error
 }
 
 // NoStateStore returns a store that loads nothing and saves nothing, for
@@ -25,14 +34,16 @@ func NoStateStore() StateStore { return noStateStore{} }
 
 type noStateStore struct{}
 
-func (noStateStore) Load(int) (map[string][]byte, error) { return map[string][]byte{}, nil }
+func (noStateStore) Load(int, int64) (map[string][]byte, error) {
+	return map[string][]byte{}, nil
+}
 
-func (noStateStore) Save(int, map[string][]byte) error { return nil }
+func (noStateStore) Save(int, int64, map[string][]byte) error { return nil }
 
 const fileStateStoreVersion = 1
 
 // FileStateStore atomically saves partition snapshots to files in a
-// directory, one file per partition.
+// directory, one file per partition and epoch.
 type FileStateStore struct {
 	directory string
 }
@@ -44,8 +55,8 @@ func NewFileStateStore(directory string) *FileStateStore {
 }
 
 // Load implements [StateStore].
-func (s *FileStateStore) Load(partition int) (map[string][]byte, error) {
-	data, err := os.ReadFile(s.file(partition))
+func (s *FileStateStore) Load(partition int, epoch int64) (map[string][]byte, error) {
+	data, err := os.ReadFile(s.file(partition, epoch))
 	if os.IsNotExist(err) {
 		return map[string][]byte{}, nil
 	}
@@ -81,7 +92,7 @@ func (s *FileStateStore) Load(partition int) (map[string][]byte, error) {
 
 // Save implements [StateStore]. The snapshot is written to a temporary file
 // and atomically renamed over the target.
-func (s *FileStateStore) Save(partition int, snapshot map[string][]byte) error {
+func (s *FileStateStore) Save(partition int, epoch int64, snapshot map[string][]byte) error {
 	if err := os.MkdirAll(s.directory, 0o755); err != nil {
 		return fmt.Errorf("cannot save partition %d state: %w", partition, err)
 	}
@@ -104,14 +115,19 @@ func (s *FileStateStore) Save(partition int, snapshot map[string][]byte) error {
 	if err := temporary.Close(); err != nil {
 		return fmt.Errorf("cannot save partition %d state: %w", partition, err)
 	}
-	if err := os.Rename(temporary.Name(), s.file(partition)); err != nil {
+	if err := os.Rename(temporary.Name(), s.file(partition, epoch)); err != nil {
 		return fmt.Errorf("cannot save partition %d state: %w", partition, err)
 	}
 	return nil
 }
 
-func (s *FileStateStore) file(partition int) string {
-	return filepath.Join(s.directory, fmt.Sprintf("partition-%d.snapshot", partition))
+// file names the snapshot of one partition and epoch. The container inside
+// the file is the same in both cases: only the key carries the epoch.
+func (s *FileStateStore) file(partition int, epoch int64) string {
+	if epoch == NoEpoch {
+		return filepath.Join(s.directory, fmt.Sprintf("partition-%d.snapshot", partition))
+	}
+	return filepath.Join(s.directory, fmt.Sprintf("partition-%d-epoch-%d.snapshot", partition, epoch))
 }
 
 // ErrorPolicyAction selects what a group runner does with a failed batch.

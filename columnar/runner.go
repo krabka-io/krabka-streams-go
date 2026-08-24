@@ -170,30 +170,61 @@ func RunPartitionOnce(ctx context.Context, topology *BuiltTopology, consumer Con
 // partition, sends the outputs, and commits the consumed offsets. It returns
 // the committed next offsets by partition.
 func RunGroupOnce(ctx context.Context, topology *BuiltTopology, consumer Consumer, producer Producer, pollTimeout time.Duration) (map[TopicPartition]int64, error) {
-	return runGroupOnce(ctx, topology, consumer, producer, pollTimeout, FailPolicy(), NewMetrics())
+	return runGroupOnce(ctx, groupRun{
+		topology:    topology,
+		consumer:    consumer,
+		producer:    producer,
+		pollTimeout: pollTimeout,
+		policy:      FailPolicy(),
+		metrics:     NewMetrics(),
+		store:       NoStateStore(),
+	})
 }
 
-func runGroupOnce(ctx context.Context, topology *BuiltTopology, consumer Consumer, producer Producer, pollTimeout time.Duration, policy ErrorPolicy, metrics *Metrics) (map[TopicPartition]int64, error) {
-	poll, err := processPoll(ctx, topology, consumer, pollTimeout, policy, metrics)
+// groupRun carries what one poll, process, send, and commit cycle needs.
+type groupRun struct {
+	topology    *BuiltTopology
+	consumer    Consumer
+	producer    Producer
+	pollTimeout time.Duration
+	policy      ErrorPolicy
+	metrics     *Metrics
+	store       StateStore
+	barrier     *barrierAligner
+}
+
+func runGroupOnce(ctx context.Context, run groupRun) (map[TopicPartition]int64, error) {
+	poll, err := processPoll(ctx, run)
 	if err != nil {
 		return nil, err
 	}
 	fail := func(err error) (map[TopicPartition]int64, error) {
-		poll.rollback(topology)
+		poll.rollback(run.topology)
 		return nil, err
 	}
-	if err := SendAll(poll.outputs, producer); err != nil {
+	if err := SendAll(poll.outputs, run.producer); err != nil {
 		return fail(err)
 	}
-	if len(poll.offsets) > 0 {
-		if err := consumer.CommitOffsets(ctx, poll.offsets); err != nil {
+	if poll.barrier != nil {
+		if err := run.barrier.save(run.topology, run.store, poll.barrier); err != nil {
 			return fail(err)
 		}
+	}
+	if len(poll.offsets) > 0 {
+		if err := run.consumer.CommitOffsets(ctx, poll.offsets); err != nil {
+			return fail(err)
+		}
+	}
+	if poll.barrier != nil {
+		run.barrier.finish(poll.barrier)
 	}
 	return poll.offsets, nil
 }
 
-func runGroupOnceTransactional(ctx context.Context, topology *BuiltTopology, consumer Consumer, producer TransactionalProducer, pollTimeout time.Duration, policy ErrorPolicy, metrics *Metrics) (map[TopicPartition]int64, error) {
+// runGroupOnceTransactional commits the produced records, the consumed
+// offsets, and any barrier of the round in one producer transaction, so the
+// cut and the transaction boundary are the same point.
+func runGroupOnceTransactional(ctx context.Context, run groupRun, producer TransactionalProducer) (map[TopicPartition]int64, error) {
 	if err := producer.BeginTransaction(); err != nil {
 		return nil, err
 	}
@@ -201,11 +232,11 @@ func runGroupOnceTransactional(ctx context.Context, topology *BuiltTopology, con
 	fail := func(err error) (map[TopicPartition]int64, error) {
 		abortErr := producer.AbortTransaction()
 		if poll != nil {
-			poll.rollback(topology)
+			poll.rollback(run.topology)
 		}
 		return nil, errors.Join(err, abortErr)
 	}
-	poll, err := processPoll(ctx, topology, consumer, pollTimeout, policy, metrics)
+	poll, err := processPoll(ctx, run)
 	if err != nil {
 		poll = nil
 		return fail(err)
@@ -213,13 +244,21 @@ func runGroupOnceTransactional(ctx context.Context, topology *BuiltTopology, con
 	if err := SendAll(poll.outputs, producer); err != nil {
 		return fail(err)
 	}
+	if poll.barrier != nil {
+		if err := run.barrier.save(run.topology, run.store, poll.barrier); err != nil {
+			return fail(err)
+		}
+	}
 	if len(poll.offsets) > 0 {
-		if err := producer.SendOffsets(poll.offsets, consumer.GroupMetadata()); err != nil {
+		if err := producer.SendOffsets(poll.offsets, run.consumer.GroupMetadata()); err != nil {
 			return fail(err)
 		}
 	}
 	if err := producer.CommitTransaction(); err != nil {
 		return fail(err)
+	}
+	if poll.barrier != nil {
+		run.barrier.finish(poll.barrier)
 	}
 	return poll.offsets, nil
 }
@@ -233,6 +272,7 @@ type processedPoll struct {
 	offsets map[TopicPartition]int64
 	outputs []ProducedToTopic
 	prior   map[int]priorState
+	barrier *Barrier
 }
 
 func (p *processedPoll) rollback(topology *BuiltTopology) {
@@ -241,13 +281,16 @@ func (p *processedPoll) rollback(topology *BuiltTopology) {
 	}
 }
 
-func processPoll(ctx context.Context, topology *BuiltTopology, consumer Consumer, pollTimeout time.Duration, policy ErrorPolicy, metrics *Metrics) (*processedPoll, error) {
-	if err := policy.validate(); err != nil {
+func processPoll(ctx context.Context, run groupRun) (*processedPoll, error) {
+	if err := run.policy.validate(); err != nil {
 		return nil, err
 	}
-	polled, err := consumer.Poll(ctx, pollTimeout)
+	polled, err := run.consumer.Poll(ctx, run.pollTimeout)
 	if err != nil {
 		return nil, err
+	}
+	if run.barrier != nil {
+		polled = run.barrier.merge(polled)
 	}
 	offsets := map[TopicPartition]int64{}
 	byPartition := map[int]map[string][]ConsumedRecord{}
@@ -256,6 +299,12 @@ func processPoll(ctx context.Context, topology *BuiltTopology, consumer Consumer
 			continue
 		}
 		normalized := normalizeRecords(records)
+		if run.barrier != nil {
+			normalized = run.barrier.accept(topicPartition, normalized)
+			if len(normalized) == 0 {
+				continue
+			}
+		}
 		partitionInput, ok := byPartition[topicPartition.Partition]
 		if !ok {
 			partitionInput = map[string][]ConsumedRecord{}
@@ -270,13 +319,13 @@ func processPoll(ctx context.Context, topology *BuiltTopology, consumer Consumer
 	prior := map[int]priorState{}
 	fail := func(err error) (*processedPoll, error) {
 		for partition, state := range prior {
-			restorePrior(topology, partition, state)
+			restorePrior(run.topology, partition, state)
 		}
 		return nil, err
 	}
 	for _, partition := range partitions {
 		input := byPartition[partition]
-		before, err := priorStateOf(topology, partition)
+		before, err := priorStateOf(run.topology, partition)
 		if err != nil {
 			return fail(err)
 		}
@@ -286,29 +335,33 @@ func processPoll(ctx context.Context, topology *BuiltTopology, consumer Consumer
 			inputCount += len(records)
 		}
 		started := time.Now()
-		partitionOutput, err := topology.RunPartitionBatches(partition, input)
+		partitionOutput, err := run.topology.RunPartitionBatches(partition, input)
 		if err != nil {
-			restorePrior(topology, partition, before)
+			restorePrior(run.topology, partition, before)
 			delete(prior, partition)
-			if policy.Action == ActionFail || retriable(err) {
+			if run.policy.Action == ActionFail || retriable(err) {
 				return fail(err)
 			}
 			deadLetters := 0
-			if policy.Action == ActionDeadLetter {
+			if run.policy.Action == ActionDeadLetter {
 				for _, topic := range sortedTopics(input) {
 					for _, record := range input[topic] {
-						outputs = append(outputs, deadLetter(policy.DeadLetterTopic, topic, record, err))
+						outputs = append(outputs, deadLetter(run.policy.DeadLetterTopic, topic, record, err))
 						deadLetters++
 					}
 				}
 			}
-			metrics.recordFailure(inputCount, deadLetters, time.Since(started).Nanoseconds())
+			run.metrics.recordFailure(inputCount, deadLetters, time.Since(started).Nanoseconds())
 			continue
 		}
 		outputs = append(outputs, partitionOutput...)
-		metrics.recordBatch(inputCount, len(partitionOutput), time.Since(started).Nanoseconds())
+		run.metrics.recordBatch(inputCount, len(partitionOutput), time.Since(started).Nanoseconds())
 	}
-	return &processedPoll{offsets: offsets, outputs: outputs, prior: prior}, nil
+	var barrier *Barrier
+	if run.barrier != nil && run.barrier.fired() {
+		barrier = run.barrier.barrier(offsets)
+	}
+	return &processedPoll{offsets: offsets, outputs: outputs, prior: prior, barrier: barrier}, nil
 }
 
 // retriable reports whether the error chain carries a retriable error, such
@@ -374,6 +427,11 @@ type GroupRunner struct {
 	store    StateStore
 	metrics  *Metrics
 	owned    map[TopicPartition]bool
+
+	barrierGroup    string
+	barrierReader   *CutReader
+	barrierListener BarrierListener
+	barrier         *barrierAligner
 }
 
 // GroupRunnerOption configures a [GroupRunner].
@@ -416,26 +474,59 @@ func NewGroupRunner(topology *Topology, consumer Consumer, producer Producer, op
 	if err := runner.policy.validate(); err != nil {
 		return nil, err
 	}
+	if err := runner.startBarrier(); err != nil {
+		return nil, err
+	}
 	if err := consumer.Subscribe(topology.SourceTopics(), runner); err != nil {
 		return nil, err
 	}
 	return runner, nil
 }
 
-// RunOnce polls once, processes, sends, and commits.
+// RunOnce polls once, processes, sends, and commits. With a barrier group it
+// also holds the records after the pending cut, and snapshots the state of
+// every partition once the poll reaches that cut.
 func (r *GroupRunner) RunOnce(ctx context.Context, pollTimeout time.Duration) (map[TopicPartition]int64, error) {
-	return runGroupOnce(ctx, r.topology, r.consumer, r.producer, pollTimeout, r.policy, r.metrics)
+	run, err := r.groupRun(ctx, pollTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return runGroupOnce(ctx, run)
 }
 
 // RunOnceTransactional sends produced records and consumed offsets in one
 // producer transaction. The producer must implement
-// [TransactionalProducer].
+// [TransactionalProducer]. A barrier commit rides inside that transaction.
 func (r *GroupRunner) RunOnceTransactional(ctx context.Context, pollTimeout time.Duration) (map[TopicPartition]int64, error) {
 	transactional, ok := r.producer.(TransactionalProducer)
 	if !ok {
 		return nil, fmt.Errorf("producer does not support transactions")
 	}
-	return runGroupOnceTransactional(ctx, r.topology, r.consumer, transactional, pollTimeout, r.policy, r.metrics)
+	run, err := r.groupRun(ctx, pollTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return runGroupOnceTransactional(ctx, run, transactional)
+}
+
+// groupRun takes the next cut of the barrier group, if one is due, and
+// describes the cycle to run.
+func (r *GroupRunner) groupRun(ctx context.Context, pollTimeout time.Duration) (groupRun, error) {
+	if r.barrier != nil {
+		if err := r.barrier.refresh(ctx, r.assignment()); err != nil {
+			return groupRun{}, err
+		}
+	}
+	return groupRun{
+		topology:    r.topology,
+		consumer:    r.consumer,
+		producer:    r.producer,
+		pollTimeout: pollTimeout,
+		policy:      r.policy,
+		metrics:     r.metrics,
+		store:       r.store,
+		barrier:     r.barrier,
+	}, nil
 }
 
 // Metrics returns the runner's metrics recorder.
@@ -457,7 +548,7 @@ func (r *GroupRunner) OnPartitionsAssigned(partitions []TopicPartition) {
 		r.owned[partition] = true
 		if !priorLogical[partition.Partition] && !restored[partition.Partition] {
 			restored[partition.Partition] = true
-			if snapshot, err := r.store.Load(partition.Partition); err == nil {
+			if snapshot, err := r.store.Load(partition.Partition, NoEpoch); err == nil {
 				_ = r.topology.RestorePartition(partition.Partition, snapshot)
 			}
 		}
@@ -513,7 +604,7 @@ func (r *GroupRunner) release(partitions []TopicPartition, save bool) {
 		}
 		if save {
 			if snapshot, err := r.topology.SnapshotPartition(logical); err == nil {
-				_ = r.store.Save(logical, snapshot)
+				_ = r.store.Save(logical, NoEpoch, snapshot)
 			}
 		}
 		r.topology.ReleasePartition(logical)

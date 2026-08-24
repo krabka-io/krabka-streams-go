@@ -24,6 +24,7 @@ area, its Go equivalent, and any deliberate adaptation.
 | Avro Arrow bridge                  | `columnarschema.AvroRowBridge`/`AvroBatchCodec` over hamba generic values | Complete |
 | Protobuf Arrow bridge              | `columnarschema.ProtobufRowBridge`/`ProtobufBatchCodec` over protoreflect | Complete |
 | Test utilities                     | `krabkatest.SchemaRegistryStub`, `krabkatest.ColumnarTestDriver`     | Complete |
+| Barrier cuts and state snapshots   | `columnar.CutReader` with `LatestCompleteCut`/`CompleteCutsAfter`, `WithBarrierGroup`, `WithBarrierListener`, `RestoreToEpoch`/`RestoreToLatestCut`, epoch-keyed `StateStore` | Complete |
 | Broker and registry integration tests | Not yet ported                                                    | Missing  |
 
 ## Known divergences
@@ -47,6 +48,12 @@ area, its Go equivalent, and any deliberate adaptation.
   encoding the unscaled bytes.
 - **Dictionary-encoded columns** are not supported by the value read/write
   facade (`columnar.Value`/`AppendValue`).
+- **The cut reader needs a partition count, and a barrier needs a position
+  the runner saw.** The Go `Consumer` seam has no partition lookup and no
+  position query, both of which the Java `KafkaConsumer` has. So
+  `NewCutReader` takes the partition count of `__barrier_state`, and a
+  barrier holds a partition until a record or a restore tells the runner
+  where that partition is.
 - **No typed Avro bridge.** Java's `AvroRowBridge.forSpecific` maps generated
   `SpecificRecord` classes; the Go bridge is generic-only. Typed Go structs
   can use the typed serde (`schema.NewAvroSerde`) with `JSONRowBridge`, or

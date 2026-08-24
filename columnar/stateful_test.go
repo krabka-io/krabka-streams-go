@@ -173,26 +173,44 @@ func TestJoinsAcrossBatchesAndRestoresOnlyTheMatchingPartition(t *testing.T) {
 }
 
 func TestFileStateStoreAtomicallyRoundTripsSnapshots(t *testing.T) {
-	store := NewFileStateStore(t.TempDir())
-	expected := map[string][]byte{"aggregate": {1, 2, 3}}
+	cases := []struct {
+		name  string
+		epoch int64
+	}{
+		{name: "outside a barrier", epoch: NoEpoch},
+		{name: "at a barrier epoch", epoch: 7},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := NewFileStateStore(t.TempDir())
+			expected := map[string][]byte{"aggregate": {1, 2, 3}}
 
-	if err := store.Save(4, expected); err != nil {
-		t.Fatal(err)
-	}
+			if err := store.Save(4, testCase.epoch, expected); err != nil {
+				t.Fatal(err)
+			}
 
-	loaded, err := store.Load(4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(loaded, expected) {
-		t.Fatalf("unexpected snapshot %v", loaded)
-	}
-	missing, err := store.Load(5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(missing) != 0 {
-		t.Fatal("a missing partition must load empty")
+			loaded, err := store.Load(4, testCase.epoch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded, expected) {
+				t.Fatalf("unexpected snapshot %v", loaded)
+			}
+			missing, err := store.Load(5, testCase.epoch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(missing) != 0 {
+				t.Fatal("a missing partition must load empty")
+			}
+			otherEpoch, err := store.Load(4, testCase.epoch+1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(otherEpoch) != 0 {
+				t.Fatal("a snapshot must not answer for another epoch")
+			}
+		})
 	}
 }
 

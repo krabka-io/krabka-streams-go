@@ -37,6 +37,7 @@ go_library(
 go_test(
     name = "columnar_test",
     srcs = [
+        "barrier_golden_test.go",
         "barrier_test.go",
         "barrieralign_test.go",
         "barriercut_test.go",

@@ -10,6 +10,7 @@ batch processing for Go stream processors.
 | [Schema registry](schema-registry.md) | Registry client, schema cache, prewarming                  |
 | [Serdes](serdes.md)                   | Avro, Protobuf, JSON Schema, and the Confluent wire format |
 | [Columnar processing](columnar.md)    | Arrow batches, codecs, topologies, runner                  |
+| [Barrier cuts](barriers.md)           | Cut manifests, alignment, epoch-keyed snapshots             |
 | [Testing](testing.md)                 | Test driver and registry stub                              |
 | [Architecture](architecture.md)       | Package layout and design decisions                        |
 

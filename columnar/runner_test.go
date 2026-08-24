@@ -186,18 +186,36 @@ func TestGroupRunnerSubscribesToAllSources(t *testing.T) {
 	}
 }
 
-type recordingStateStore struct {
-	loaded []int
-	saved  []int
+// snapshotKey is the storage key of one snapshot: the partition and the
+// epoch of the cut, or [NoEpoch] outside a barrier.
+type snapshotKey struct {
+	partition int
+	epoch     int64
 }
 
-func (s *recordingStateStore) Load(partition int) (map[string][]byte, error) {
-	s.loaded = append(s.loaded, partition)
+type recordingStateStore struct {
+	loaded    []snapshotKey
+	saved     []snapshotKey
+	snapshots map[snapshotKey]map[string][]byte
+}
+
+func newRecordingStateStore() *recordingStateStore {
+	return &recordingStateStore{snapshots: map[snapshotKey]map[string][]byte{}}
+}
+
+func (s *recordingStateStore) Load(partition int, epoch int64) (map[string][]byte, error) {
+	key := snapshotKey{partition: partition, epoch: epoch}
+	s.loaded = append(s.loaded, key)
+	if snapshot, ok := s.snapshots[key]; ok {
+		return snapshot, nil
+	}
 	return map[string][]byte{}, nil
 }
 
-func (s *recordingStateStore) Save(partition int, snapshot map[string][]byte) error {
-	s.saved = append(s.saved, partition)
+func (s *recordingStateStore) Save(partition int, epoch int64, snapshot map[string][]byte) error {
+	key := snapshotKey{partition: partition, epoch: epoch}
+	s.saved = append(s.saved, key)
+	s.snapshots[key] = snapshot
 	return nil
 }
 
@@ -212,7 +230,7 @@ func TestGroupRunnerLoadsAndSavesStateAtRebalanceBoundaries(t *testing.T) {
 	if _, err := topology.AddPassThroughSink("sink", "out", source); err != nil {
 		t.Fatal(err)
 	}
-	store := &recordingStateStore{}
+	store := newRecordingStateStore()
 	runner, err := NewGroupRunner(topology, consumer, &mockProducer{}, WithStateStore(store))
 	if err != nil {
 		t.Fatal(err)
@@ -223,10 +241,11 @@ func TestGroupRunnerLoadsAndSavesStateAtRebalanceBoundaries(t *testing.T) {
 	runner.OnPartitionsAssigned([]TopicPartition{partition})
 	runner.OnPartitionsRevoked([]TopicPartition{partition})
 
-	if !reflect.DeepEqual(store.loaded, []int{3}) {
+	expected := []snapshotKey{{partition: 3, epoch: NoEpoch}}
+	if !reflect.DeepEqual(store.loaded, expected) {
 		t.Fatalf("unexpected loads %v", store.loaded)
 	}
-	if !reflect.DeepEqual(store.saved, []int{3}) {
+	if !reflect.DeepEqual(store.saved, expected) {
 		t.Fatalf("unexpected saves %v", store.saved)
 	}
 }
@@ -290,8 +309,9 @@ func TestDeadLettersFailedBatchesAndReportsMetrics(t *testing.T) {
 	}
 	metrics := NewMetrics()
 
-	offsets, err := runGroupOnce(t.Context(), built, consumer, producer, 0,
-		DeadLetterPolicy("dlq"), metrics)
+	offsets, err := runGroupOnce(t.Context(), groupRun{
+		topology: built, consumer: consumer, producer: producer,
+		policy: DeadLetterPolicy("dlq"), metrics: metrics, store: NoStateStore()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,8 +388,9 @@ func TestRethrowsRetriableFailuresInsteadOfDeadLettering(t *testing.T) {
 		{partition: {NewConsumedRecord(nil, data, 0, 0, 0)}},
 	}
 
-	_, err = runGroupOnce(t.Context(), built, consumer, producer, 0,
-		DeadLetterPolicy("dlq"), NewMetrics())
+	_, err = runGroupOnce(t.Context(), groupRun{
+		topology: built, consumer: consumer, producer: producer,
+		policy: DeadLetterPolicy("dlq"), metrics: NewMetrics(), store: NoStateStore()})
 
 	if err == nil || !strings.Contains(err.Error(), "registry fetch pending") {
 		t.Fatalf("expected the retriable error to surface, got %v", err)

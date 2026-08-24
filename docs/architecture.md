@@ -76,6 +76,32 @@ added, which makes cycles unrepresentable. `Build` returns a separate type,
 `BuiltTopology`, so a validated topology is distinguishable in the type
 system.
 
+### A cut manifest drives the barrier, not a marker
+
+A barrier marker is a Kafka control record. Every consumer drops it before
+the application sees it, so this library cannot observe one in band, and it
+does not try. The broker publishes each cut as a manifest record on
+`__barrier_state`, and `CutReader` reads that topic with the same `Consumer`
+seam the group runner uses. The runner then compares the offsets it consumed
+against the manifest.
+
+The marker still holds the truth. It takes a real offset in the partition
+order, and the offset it holds carries no data record. That is why the
+records before the cut are exactly the records with a lower offset, and why
+the runner needs no marker to find the boundary.
+
+A partial cut is skipped. Its missing partitions receive no marker for that
+epoch, so a task that waits for one waits forever.
+
+### The snapshot key carries the epoch, the container does not
+
+`StateStore` keys a snapshot by the partition and the epoch, and the bytes
+inside stay the container `FileStateStore` always wrote. The broker,
+`krabka-streams-rs`, and `krabka-streams-java` share that container, and a
+cut identity inside it would make the same state two different files. A
+reader that needs the offsets of a cut reads the manifest instead. Snapshots
+outside a barrier, such as the one a rebalance writes, use the `NoEpoch` key.
+
 ### Errors are typed where callers branch
 
 | Error                       | Returned by                 | Meaning                                                 |

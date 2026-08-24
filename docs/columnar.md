@@ -185,3 +185,8 @@ true, such as the schema cache's pending fetch) always fail the poll so the
 records are retried. Dead letters carry `krabka.error.class`,
 `krabka.error.message`, `krabka.source.topic`, `krabka.source.partition`,
 and `krabka.source.offset` headers.
+
+`WithBarrierGroup` aligns the runner on the cuts a krabka broker publishes,
+snapshots the state of every partition at each cut, and commits the cut
+offsets. `RestoreToEpoch` puts the runner back at one of those cuts. See
+[barrier cuts](barriers.md).

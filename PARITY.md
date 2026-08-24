@@ -1,6 +1,6 @@
 # Feature parity with krabka-streams-java
 
-Version `0.1.0` tracks `krabka-streams-java` `1.2.0`. Each row names the Java
+Version `0.2.0` tracks `krabka-streams-java` `1.3.0`. Each row names the Java
 area, its Go equivalent, and any deliberate adaptation.
 
 | Area                               | Go implementation                                                    | Status   |

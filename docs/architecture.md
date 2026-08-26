@@ -8,13 +8,15 @@ schema                    hamba/avro, google.golang.org/protobuf,
                           santhosh-tekuri/jsonschema
 columnar                  apache/arrow-go
 columnarschema            schema + columnar + hamba/avro + protobuf
+coordination              standard library only
 krabkatest                everything above, plus net/http for the stub
 ```
 
 The two base feature packages do not know about each other: `schema` has no
 Arrow dependency and `columnar` has no Avro or Protobuf dependency. They meet
 in `columnarschema`, whose batch codecs and row bridges map registry schemas
-onto native Arrow columns, and in `krabkatest`.
+onto native Arrow columns, and in `krabkatest`. `coordination` stands apart
+from all of them and imports the standard library only.
 
 ## Design decisions
 
@@ -93,6 +95,31 @@ the runner needs no marker to find the boundary.
 A partial cut is skipped. Its missing partitions receive no marker for that
 epoch, so a task that waits for one waits forever.
 
+### The epoch fences a deposed leader, and the lease does not
+
+`coordination` elects one leader per role. The leadership epoch is the
+producer epoch that Kafka's transaction coordinator mints for
+`transactional.id = <role>`. The quorum mints it, the value only grows, and
+the broker rejects a write that carries a superseded epoch. A deposed leader
+learns that it lost the role from that rejection, and from nothing else.
+
+The lease is a liveness and anti-flap device only. It decides when a standby
+challenges a quiet holder. A wrong lease makes a failover early or late. A
+wrong lease never makes two writers authoritative. Read that inversion against
+a hand-rolled design, where the lease deadline decides who may write. This
+library never asks the lease that question.
+
+Two consequences shape the API. The fencing token is the pair
+`(ProducerID, ProducerEpoch)` and the comparison reads the producer id first,
+because the epoch is an `int16` that wraps and Kafka answers the exhaustion
+with a fresh producer id. The succession rank comes from the offset of a
+registration record, and not from configuration, so a recovered node lands at
+the tail of the roster and preempts no one.
+
+`coordination` reaches the broker through four small interfaces that a caller
+satisfies, the same seam the group runner draws. It declares its own
+`TopicPartition`, so the package keeps its own dependency-free boundary.
+
 ### The snapshot key carries the epoch, the container does not
 
 `StateStore` keys a snapshot by the partition and the epoch, and the bytes
@@ -108,6 +135,10 @@ outside a barrier, such as the one a rebalance writes, use the `NoEpoch` key.
 | --------------------------- | --------------------------- | ------------------------------------------------------- |
 | `*schema.RegistryError`     | registry client             | transport, status, or response problem; `StatusCode` tells which |
 | `*schema.FetchPendingError` | `SchemaCache`               | a writer schema is being fetched; retriable             |
+| `*columnar.BarrierFormatError` | barrier cut decoder      | malformed `__barrier_state` record; `Part` tells which part |
+| `*coordination.FormatError` | coordination record codec   | malformed `__coordination_state` record; `Part` tells which part |
+| `coordination.ErrFenced`    | lease writes, `Leadership`  | another member holds the role; the leadership ended      |
+| `coordination.ErrNotHeld`   | `Leadership`                | the caller acted on a leadership that already ended     |
 | plain wrapped errors        | serdes, codecs, topology    | messages name the offending subject, column, node, or record index |
 
 Retriability is a behavior, not a type: anything in an error chain with a
@@ -119,6 +150,8 @@ poll so the records are retried.
 | Type                      | Safety                                              |
 | ------------------------- | --------------------------------------------------- |
 | `RegistryClient`          | safe for concurrent use                             |
+| `Leadership`, `ManualClock` | safe for concurrent use                           |
+| `RoleStateBuilder`        | not safe while folding                              |
 | `SchemaCache`             | safe for concurrent use                             |
 | Serdes                    | safe once the cache is prewarmed                    |
 | Batch codecs, row bridges | safe; the Arrow schema is fixed at construction (except `JSONRowBridge`, which infers and retains its schema and is not safe while inferring) |

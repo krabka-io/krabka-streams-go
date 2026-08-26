@@ -41,6 +41,7 @@ docsite_site(
         ":docsite_srcs",
         "//columnar:docsite_srcs",
         "//columnarschema:docsite_srcs",
+        "//coordination:docsite_srcs",
         "//krabkatest:docsite_srcs",
         "//schema:docsite_srcs",
     ],

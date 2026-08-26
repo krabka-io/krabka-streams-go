@@ -25,6 +25,7 @@ area, its Go equivalent, and any deliberate adaptation.
 | Protobuf Arrow bridge              | `columnarschema.ProtobufRowBridge`/`ProtobufBatchCodec` over protoreflect | Complete |
 | Test utilities                     | `krabkatest.SchemaRegistryStub`, `krabkatest.ColumnarTestDriver`     | Complete |
 | Barrier cuts and state snapshots   | `columnar.CutReader` with `LatestCompleteCut`/`CompleteCutsAfter`, `WithBarrierGroup`, `WithBarrierListener`, `RestoreToEpoch`/`RestoreToLatestCut`, epoch-keyed `StateStore` | Complete |
+| Coordination primitives            | `coordination.AcquireLeadership`, `DescribeLeadership`, the frozen `__coordination_state` codec, the succession rules, and the lease clock over small `Coordinator`/`StateReader`/`Registrar`/`LeaseWriter` interfaces; adapters are your ~50 lines | Adapted  |
 | Broker and registry integration tests | Not yet ported                                                    | Missing  |
 
 ## Known divergences
@@ -54,6 +55,19 @@ area, its Go equivalent, and any deliberate adaptation.
   `NewCutReader` takes the partition count of `__barrier_state`, and a
   barrier holds a partition until a record or a restore tells the runner
   where that partition is.
+- **The coordination seam carries no broker calls of its own.** The Go
+  package ships the record codec, the roster and rank logic, the challenge
+  timing, the lease clock, the renewal loop, `AcquireLeadership`, and
+  `DescribeLeadership`. It performs no `FindCoordinator`, `InitProducerId`,
+  `DescribeTransactions`, `Produce`, or `Fetch` call, and it creates no topic.
+  A caller writes the adapter: two producers per role (one transactional for
+  the lease records and one plain for the registrations), a committed read of
+  one partition, and the mapping of broker error codes 47
+  `INVALID_PRODUCER_EPOCH` and 90 `PRODUCER_FENCED` onto `ErrFenced`. Without
+  that mapping a deposed leader never learns that it lost the role. The
+  package also takes the partition count of `__coordination_state` from
+  `WithPartitions` instead of a metadata lookup, and it declares its own
+  `TopicPartition` rather than importing `columnar`.
 - **No typed Avro bridge.** Java's `AvroRowBridge.forSpecific` maps generated
   `SpecificRecord` classes; the Go bridge is generic-only. Typed Go structs
   can use the typed serde (`schema.NewAvroSerde`) with `JSONRowBridge`, or

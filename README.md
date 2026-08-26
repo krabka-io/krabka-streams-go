@@ -18,6 +18,7 @@ go get github.com/krabka-io/krabka-streams-go
 | `github.com/krabka-io/krabka-streams-go/schema`      | Registry client, cache, and Avro/Protobuf/JSON Schema serdes |
 | `github.com/krabka-io/krabka-streams-go/columnar`    | Apache Arrow batch processing and barrier cuts |
 | `github.com/krabka-io/krabka-streams-go/columnarschema` | Avro and Protobuf Arrow bridges             |
+| `github.com/krabka-io/krabka-streams-go/coordination` | Leader election, leases, and fencing tokens   |
 | `github.com/krabka-io/krabka-streams-go/krabkatest`  | Test helpers for all packages                  |
 
 Go has no Kafka Streams runtime, so unlike the Java library there is no
@@ -117,6 +118,7 @@ from the godoc comments, is published at
 | [Serdes](docs/serdes.md)                   | Avro, Protobuf, JSON Schema, and the Confluent wire format |
 | [Columnar processing](docs/columnar.md)    | Arrow batches, codecs, topologies, runner           |
 | [Barrier cuts](docs/barriers.md)           | Cut manifests, alignment, epoch-keyed snapshots     |
+| [Coordination](docs/coordination.md)       | Leader election, leases, fencing tokens             |
 | [Testing](docs/testing.md)                 | Test driver and registry stub                       |
 | [Architecture](docs/architecture.md)       | Package layout and design decisions                 |
 

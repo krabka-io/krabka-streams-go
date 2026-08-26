@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "coordination",
+    srcs = [
+        "doc.go",
+        "leadership.go",
+        "lease.go",
+        "partition.go",
+        "record.go",
+        "succession.go",
+        "transport.go",
+    ],
+    importpath = "github.com/krabka-io/krabka-streams-go/coordination",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "coordination_test",
+    srcs = [
+        "example_test.go",
+        "golden_test.go",
+        "leadership_test.go",
+        "lease_test.go",
+        "record_test.go",
+        "succession_test.go",
+        "token_test.go",
+    ],
+    embed = [":coordination"],
+)
+
+# Inputs for //:docsite-site; example_test.go files contribute the runnable
+# examples shown on the API reference site.
+filegroup(
+    name = "docsite_srcs",
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ) + glob(
+        ["example_test.go"],
+        allow_empty = True,
+    ),
+    visibility = ["//:__pkg__"],
+)

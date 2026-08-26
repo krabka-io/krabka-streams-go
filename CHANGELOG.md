@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `coordination`: leader election, leases, and fencing tokens. The leadership
+  epoch is the producer epoch that Kafka's transaction coordinator mints for
+  `transactional.id = <role>`, so the broker fences a deposed leader and the
+  lease is an anti-flap device only. The package ships the frozen
+  `__coordination_state` record codec, the roster and rank rules,
+  `Evaluate`, the lease clock, `AcquireLeadership` with a background renewal
+  loop, and `DescribeLeadership` for a third-party check. It reaches a broker
+  through the small `Coordinator`, `StateReader`, `Registrar`, and
+  `LeaseWriter` interfaces, and it pins no Kafka client.
 - `columnar`: barrier-aligned, epoch-keyed state snapshots. `CutReader` reads
   the cut manifests a krabka broker publishes on `__barrier_state`,
   `WithBarrierGroup` aligns a group runner on each complete cut, and the

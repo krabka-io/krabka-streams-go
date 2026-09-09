@@ -109,10 +109,9 @@ the partition state back, and the epoch stays open for the next round.
 
 ## Limits
 
-- A barrier holds a partition until the runner knows where that partition is.
-  The `Consumer` seam has no position query, so the runner takes the position
-  from the records it read and from the cuts it restored to. A partition that
-  delivered nothing since the runner started holds the barrier open.
+- A consumer adapter should implement `PositionReader`. The runner then uses
+  the broker-reported next offset for an idle partition; without that optional
+  seam it falls back to positions learned from records and restored cuts.
 - The records after a cut wait in memory until the barrier fires. A slow
   partition in a barrier group costs memory in every fast one.
 - A cut whose offsets are behind the runner's committed position does not

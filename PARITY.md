@@ -19,14 +19,14 @@ area, its Go equivalent, and any deliberate adaptation.
 | Built-in operators                 | `Filter`, `Select`, `WithColumns`, `GroupBy`, `WindowedGroupBy` with snapshot/restore | Complete |
 | Topology and runtime               | `columnar.Topology`/`BuiltTopology` with per-partition processor state and explicit lifecycle | Complete |
 | Event-time join                    | `columnar.Join` via `AddJoin`, windowed, snapshot-capable            | Complete |
-| Group runner                       | `columnar.GroupRunner` and `RunPartitionOnce`/`RunGroupOnce` over small `Consumer`/`Producer` interfaces; adapters for franz-go or confluent-kafka-go are your ~50 lines | Adapted  |
+| Group runner                       | `columnar.GroupRunner` and `RunPartitionOnce`/`RunGroupOnce` over small `Consumer`/`Producer` interfaces; `PositionReader` supplies idle-partition positions for barrier cuts | Adapted  |
 | Error policies, metrics, state store | `columnar.ErrorPolicy`, `Metrics`, `FileStateStore`                | Complete |
 | Avro Arrow bridge                  | `columnarschema.AvroRowBridge`/`AvroBatchCodec` over hamba generic values | Complete |
 | Protobuf Arrow bridge              | `columnarschema.ProtobufRowBridge`/`ProtobufBatchCodec` over protoreflect | Complete |
 | Test utilities                     | `krabkatest.SchemaRegistryStub`, `krabkatest.ColumnarTestDriver`     | Complete |
 | Barrier cuts and state snapshots   | `columnar.CutReader` with `LatestCompleteCut`/`CompleteCutsAfter`, `WithBarrierGroup`, `WithBarrierListener`, `RestoreToEpoch`/`RestoreToLatestCut`, epoch-keyed `StateStore` | Complete |
-| Coordination primitives            | `coordination.AcquireLeadership`, `DescribeLeadership`, the frozen `__coordination_state` codec, the succession rules, and the lease clock over small `Coordinator`/`StateReader`/`Registrar`/`LeaseWriter` interfaces; adapters are your ~50 lines | Adapted  |
-| Broker and registry integration tests | Not yet ported                                                    | Missing  |
+| Coordination primitives            | `coordination.AcquireLeadership`, `DescribeLeadership`, the frozen `__coordination_state` codec, succession and lease rules, plus the franz-go `KafkaTransport` | Complete |
+| Broker and registry integration tests | Environment-gated live coordination fencing/recovery coverage     | Adapted  |
 
 ## Known divergences
 
@@ -49,25 +49,10 @@ area, its Go equivalent, and any deliberate adaptation.
   encoding the unscaled bytes.
 - **Dictionary-encoded columns** are not supported by the value read/write
   facade (`columnar.Value`/`AppendValue`).
-- **The cut reader needs a partition count, and a barrier needs a position
-  the runner saw.** The Go `Consumer` seam has no partition lookup and no
-  position query, both of which the Java `KafkaConsumer` has. So
-  `NewCutReader` takes the partition count of `__barrier_state`, and a
-  barrier holds a partition until a record or a restore tells the runner
-  where that partition is.
-- **The coordination seam carries no broker calls of its own.** The Go
-  package ships the record codec, the roster and rank logic, the challenge
-  timing, the lease clock, the renewal loop, `AcquireLeadership`, and
-  `DescribeLeadership`. It performs no `FindCoordinator`, `InitProducerId`,
-  `DescribeTransactions`, `Produce`, or `Fetch` call, and it creates no topic.
-  A caller writes the adapter: two producers per role (one transactional for
-  the lease records and one plain for the registrations), a committed read of
-  one partition, and the mapping of broker error codes 47
-  `INVALID_PRODUCER_EPOCH` and 90 `PRODUCER_FENCED` onto `ErrFenced`. Without
-  that mapping a deposed leader never learns that it lost the role. The
-  package also takes the partition count of `__coordination_state` from
-  `WithPartitions` instead of a metadata lookup, and it declares its own
-  `TopicPartition` rather than importing `columnar`.
+- **Metadata remains explicit.** `NewCutReader` and coordination still take
+  internal-topic partition counts from the caller. A `GroupRunner` uses the
+  optional `PositionReader` seam when an idle partition must reach a barrier
+  cut without yielding a record.
 - **No typed Avro bridge.** Java's `AvroRowBridge.forSpecific` maps generated
   `SpecificRecord` classes; the Go bridge is generic-only. Typed Go structs
   can use the typed serde (`schema.NewAvroSerde`) with `JSONRowBridge`, or

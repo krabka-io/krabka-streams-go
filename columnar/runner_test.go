@@ -21,6 +21,7 @@ type mockConsumer struct {
 	committed  map[TopicPartition]int64
 	subscribed []string
 	listener   RebalanceListener
+	positions  map[TopicPartition]int64
 }
 
 func newMockConsumer() *mockConsumer {
@@ -58,6 +59,16 @@ func (c *mockConsumer) Subscribe(topics []string, listener RebalanceListener) er
 }
 
 func (c *mockConsumer) GroupMetadata() any { return "group-metadata" }
+
+func (c *mockConsumer) Positions(_ context.Context, partitions []TopicPartition) (map[TopicPartition]int64, error) {
+	positions := map[TopicPartition]int64{}
+	for _, partition := range partitions {
+		if position, ok := c.positions[partition]; ok {
+			positions[partition] = position
+		}
+	}
+	return positions, nil
+}
 
 type mockProducer struct {
 	history  []ProducedToTopic

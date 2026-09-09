@@ -179,8 +179,8 @@ reports the state of a cluster.
 
 ## The transport seam
 
-This library pins no Kafka client, so the package reaches a broker through
-four small interfaces. One adapter type satisfies all four.
+The package exposes four small interfaces and ships `KafkaTransport`, a
+franz-go adapter that satisfies all four.
 
 ```go
 type Transport interface {

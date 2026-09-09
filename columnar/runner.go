@@ -64,6 +64,13 @@ type Consumer interface {
 	GroupMetadata() any
 }
 
+// PositionReader reports the next offset of assigned partitions. A consumer
+// adapter implements it so an idle partition can reach a barrier without
+// manufacturing a record.
+type PositionReader interface {
+	Positions(ctx context.Context, partitions []TopicPartition) (map[TopicPartition]int64, error)
+}
+
 // Producer is the minimal Kafka producer surface the runner needs. Send
 // dispatches a record asynchronously and calls done exactly once with the
 // acknowledgement outcome.
@@ -515,6 +522,13 @@ func (r *GroupRunner) groupRun(ctx context.Context, pollTimeout time.Duration) (
 	if r.barrier != nil {
 		if err := r.barrier.refresh(ctx, r.assignment()); err != nil {
 			return groupRun{}, err
+		}
+		if positioned, ok := r.consumer.(PositionReader); ok {
+			positions, err := positioned.Positions(ctx, r.barrier.alignedPartitions())
+			if err != nil {
+				return groupRun{}, err
+			}
+			r.barrier.observePositions(positions)
 		}
 	}
 	return groupRun{

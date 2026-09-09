@@ -16,17 +16,18 @@ import (
 type KafkaTransport struct {
 	brokers []string
 	plain   *kgo.Client
+	timeout time.Duration
 	mu      sync.Mutex
-	roles   map[Role]kafkaRoleProducer
+	roles   map[FencingToken]*kafkaRoleProducer
 }
 
 type kafkaRoleProducer struct {
 	client *kgo.Client
-	token  FencingToken
+	mu     sync.Mutex
 }
 
 // NewKafkaTransport connects a coordination transport to brokers.
-func NewKafkaTransport(brokers ...string) (*KafkaTransport, error) {
+func NewKafkaTransport(lease LeaseConfig, brokers ...string) (*KafkaTransport, error) {
 	if len(brokers) == 0 {
 		return nil, errors.New("a Kafka transport needs at least one broker")
 	}
@@ -39,7 +40,7 @@ func NewKafkaTransport(brokers ...string) (*KafkaTransport, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Kafka client: %w", err)
 	}
-	return &KafkaTransport{brokers: append([]string(nil), brokers...), plain: plain, roles: make(map[Role]kafkaRoleProducer)}, nil
+	return &KafkaTransport{brokers: append([]string(nil), brokers...), plain: plain, timeout: lease.Duration(), roles: make(map[FencingToken]*kafkaRoleProducer)}, nil
 }
 
 // AcquireEpoch initializes a transactional producer whose id is the role.
@@ -50,7 +51,7 @@ func (t *KafkaTransport) AcquireEpoch(ctx context.Context, role Role) (FencingTo
 		kgo.ProducerBatchCompression(kgo.NoCompression()),
 		kgo.RecordPartitioner(kgo.ManualPartitioner()),
 		kgo.TransactionalID(role.String()),
-		kgo.TransactionTimeout(DefaultLeaseDuration),
+		kgo.TransactionTimeout(t.timeout),
 	)
 	if err != nil {
 		return FencingToken{}, fmt.Errorf("create transactional producer for %s: %w", role, err)
@@ -66,12 +67,8 @@ func (t *KafkaTransport) AcquireEpoch(ctx context.Context, role Role) (FencingTo
 		return FencingToken{}, err
 	}
 	t.mu.Lock()
-	previous, found := t.roles[role]
-	t.roles[role] = kafkaRoleProducer{client: producer, token: token}
+	t.roles[token] = &kafkaRoleProducer{client: producer}
 	t.mu.Unlock()
-	if found {
-		previous.client.Close()
-	}
 	return token, nil
 }
 
@@ -116,17 +113,27 @@ func (t *KafkaTransport) ReadPartition(ctx context.Context, partition TopicParti
 	}
 	defer reader.Close()
 	var records []StateRecord
-	readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
+	nextOffset := int64(0)
 	for {
-		fetches := reader.PollFetches(readCtx)
-		if err := fetches.Err(); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+		fetches := reader.PollFetches(ctx)
+		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("read %s-%d: %w", partition.Topic, partition.Partition, err)
 		}
+		if err := fetches.Err(); err != nil {
+			return nil, fmt.Errorf("read %s-%d: %w", partition.Topic, partition.Partition, err)
+		}
+		lastStableOffset := int64(-1)
+		fetches.EachPartition(func(fetched kgo.FetchTopicPartition) {
+			if fetched.Topic == partition.Topic && fetched.Partition == int32(partition.Partition) {
+				nextOffset = max(nextOffset, fetched.LogStartOffset)
+				lastStableOffset = fetched.LastStableOffset
+			}
+		})
 		fetches.EachRecord(func(record *kgo.Record) {
 			records = append(records, StateRecord{Offset: record.Offset, Key: append([]byte(nil), record.Key...), Value: append([]byte(nil), record.Value...)})
+			nextOffset = max(nextOffset, record.Offset+1)
 		})
-		if readCtx.Err() != nil {
+		if lastStableOffset >= 0 && nextOffset >= lastStableOffset {
 			return records, nil
 		}
 	}
@@ -140,11 +147,13 @@ func (t *KafkaTransport) Append(ctx context.Context, partition TopicPartition, k
 // WriteLease writes and commits one lease record under token.
 func (t *KafkaTransport) WriteLease(ctx context.Context, partition TopicPartition, token FencingToken, key, value []byte) error {
 	t.mu.Lock()
-	roleProducer, found := roleProducerForToken(t.roles, token)
+	roleProducer, found := t.roles[token]
 	t.mu.Unlock()
 	if !found {
 		return fmt.Errorf("Kafka transport did not mint token %s", token)
 	}
+	roleProducer.mu.Lock()
+	defer roleProducer.mu.Unlock()
 	if err := roleProducer.client.BeginTransaction(); err != nil {
 		return mapFence(err)
 	}
@@ -153,15 +162,6 @@ func (t *KafkaTransport) WriteLease(ctx context.Context, partition TopicPartitio
 		return mapFence(err)
 	}
 	return mapFence(roleProducer.client.EndTransaction(ctx, kgo.TryCommit))
-}
-
-func roleProducerForToken(producers map[Role]kafkaRoleProducer, token FencingToken) (kafkaRoleProducer, bool) {
-	for _, producer := range producers {
-		if producer.token == token {
-			return producer, true
-		}
-	}
-	return kafkaRoleProducer{}, false
 }
 
 func (t *KafkaTransport) produce(ctx context.Context, client *kgo.Client, partition TopicPartition, key, value []byte) error {

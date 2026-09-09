@@ -21,12 +21,13 @@ func TestKafkaTransportFencesAStaleLeaderAndKeepsSuccessionOrder(t *testing.T) {
 	defer cancel()
 	createCoordinationTopic(t, ctx, bootstrap)
 
-	first, err := NewKafkaTransport(bootstrap)
+	leases, _ := NewLeaseConfig(750*time.Millisecond, 200*time.Millisecond, 100*time.Millisecond)
+	first, err := NewKafkaTransport(leases, bootstrap)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := NewKafkaTransport(bootstrap)
+	second, err := NewKafkaTransport(leases, bootstrap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,6 @@ func TestKafkaTransportFencesAStaleLeaderAndKeepsSuccessionOrder(t *testing.T) {
 	memberOne, _ := NewMemberID("go-first")
 	memberTwo, _ := NewMemberID("go-second")
 	recovered, _ := NewMemberID("go-first-recovered")
-	leases, _ := NewLeaseConfig(750*time.Millisecond, 200*time.Millisecond, 100*time.Millisecond)
 	partition, _ := RoleTopicPartition(role)
 	appendRegistration(t, ctx, first, partition, role, memberOne)
 	if records, err := first.ReadPartition(ctx, partition); err != nil || len(records) == 0 {

@@ -121,6 +121,9 @@ func TestHoldsTheRecordsAfterTheCutAndSnapshotsAtTheBarrier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if consumer.positionReads != 0 {
+		t.Fatal("positions must not be read before the initial assignment")
+	}
 
 	if !reflect.DeepEqual(first, map[TopicPartition]int64{partition: 2}) {
 		t.Fatalf("the committed position must be the cut, got %v", first)
@@ -225,6 +228,7 @@ func TestBarrierUsesTheConsumerPositionForAnIdlePartition(t *testing.T) {
 	defer runner.Close()
 	active := TopicPartition{Topic: "in", Partition: 0}
 	idle := TopicPartition{Topic: "in", Partition: 1}
+	runner.OnPartitionsAssigned([]TopicPartition{active, idle})
 	consumer.positions = map[TopicPartition]int64{idle: 7}
 	consumer.polls = []map[TopicPartition][]ConsumedRecord{
 		{active: rowRecords(t, mem, "in", 0, 0, 1)},

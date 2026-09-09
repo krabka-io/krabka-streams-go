@@ -520,10 +520,11 @@ func (r *GroupRunner) RunOnceTransactional(ctx context.Context, pollTimeout time
 // describes the cycle to run.
 func (r *GroupRunner) groupRun(ctx context.Context, pollTimeout time.Duration) (groupRun, error) {
 	if r.barrier != nil {
-		if err := r.barrier.refresh(ctx, r.assignment()); err != nil {
+		assignment := r.assignment()
+		if err := r.barrier.refresh(ctx, assignment); err != nil {
 			return groupRun{}, err
 		}
-		if positioned, ok := r.consumer.(PositionReader); ok {
+		if positioned, ok := r.consumer.(PositionReader); ok && len(assignment) > 0 {
 			positions, err := positioned.Positions(ctx, r.barrier.alignedPartitions())
 			if err != nil {
 				return groupRun{}, err

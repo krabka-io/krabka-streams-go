@@ -6,6 +6,8 @@ require (
 	github.com/apache/arrow-go/v18 v18.7.0
 	github.com/hamba/avro/v2 v2.31.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+	github.com/twmb/franz-go v1.21.6
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	golang.org/x/text v0.37.0
 	google.golang.org/protobuf v1.36.11
 )

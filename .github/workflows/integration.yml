@@ -1,0 +1,69 @@
+name: Integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  coordination:
+    name: coordination · ${{ matrix.broker }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        broker: [apache-kafka-4.3.1, krabka-0.3.8]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Start Apache Kafka 4.3.1
+        if: matrix.broker == 'apache-kafka-4.3.1'
+        run: |
+          docker run -d --name broker -p 9092:9092 \
+            -e KAFKA_NODE_ID=1 \
+            -e KAFKA_PROCESS_ROLES=broker,controller \
+            -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+            -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+            -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+            -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT \
+            -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+            -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+            apache/kafka:4.3.1
+          for attempt in $(seq 1 60); do
+            docker logs broker 2>&1 | grep -q 'Kafka Server started' && break
+            sleep 1
+          done
+          docker logs broker 2>&1 | grep -q 'Kafka Server started'
+      - name: Start Krabka 0.3.8
+        if: matrix.broker == 'krabka-0.3.8'
+        run: |
+          docker run -d --name broker -p 9092:9092 --entrypoint /bin/sh \
+            ghcr.io/robot-head/crabka-broker:v0.3.8 -c '
+              set -eu
+              /usr/bin/crabka format --log-dir /tmp/data --standalone --node-id 1 \
+                --controller-listener 127.0.0.1:9093
+              exec /usr/bin/crabka-broker --listen-addr 0.0.0.0:9092 \
+                --advertised-listener localhost:9092 --log-dir /tmp/data \
+                --metrics-listen-addr none
+            '
+          for attempt in $(seq 1 60); do
+            docker logs broker 2>&1 | grep -q 'crabka-broker listening' && break
+            sleep 1
+          done
+          docker logs broker 2>&1 | grep -q 'crabka-broker listening'
+      - name: Run live coordination contract
+        env:
+          KRABKA_INTEGRATION_BOOTSTRAP: localhost:9092
+        run: go test ./coordination -run '^TestKafkaTransportFencesAStaleLeaderAndKeepsSuccessionOrder$' -count=1 -v
+      - name: Show broker log
+        if: always()
+        run: docker logs broker

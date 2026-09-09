@@ -244,6 +244,22 @@ func (a *barrierAligner) owns(partition TopicPartition) bool {
 	return a.assigned[partition]
 }
 
+func (a *barrierAligner) alignedPartitions() []TopicPartition {
+	partitions := slices.Collect(maps.Keys(a.aligned))
+	slices.SortFunc(partitions, compareTopicPartitions)
+	return partitions
+}
+
+func (a *barrierAligner) observePositions(positions map[TopicPartition]int64) {
+	if a.pending == nil {
+		return
+	}
+	for partition, position := range positions {
+		a.positions[partition] = max(a.positions[partition], position)
+	}
+	a.realign()
+}
+
 // merge puts the records held at the previous barrier round in front of the
 // fetched ones.
 func (a *barrierAligner) merge(polled map[TopicPartition][]ConsumedRecord) map[TopicPartition][]ConsumedRecord {

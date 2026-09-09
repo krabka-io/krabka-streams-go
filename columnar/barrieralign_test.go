@@ -121,6 +121,9 @@ func TestHoldsTheRecordsAfterTheCutAndSnapshotsAtTheBarrier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if consumer.positionReads != 0 {
+		t.Fatal("positions must not be read before the initial assignment")
+	}
 
 	if !reflect.DeepEqual(first, map[TopicPartition]int64{partition: 2}) {
 		t.Fatalf("the committed position must be the cut, got %v", first)
@@ -205,6 +208,43 @@ func TestBarrierWaitsForEveryPartitionOfTheCut(t *testing.T) {
 	}
 	if !reflect.DeepEqual(store.saved, []snapshotKey{{partition: 0, epoch: 5}, {partition: 1, epoch: 5}}) {
 		t.Fatalf("every partition must snapshot at the barrier, got %v", store.saved)
+	}
+}
+
+func TestBarrierUsesTheConsumerPositionForAnIdlePartition(t *testing.T) {
+	mem := checkedAllocator(t)
+	consumer := newMockConsumer()
+	store := newRecordingStateStore()
+	cut := testCut{
+		group: "audit", epoch: 5, status: CutComplete, triggeredAt: 50, completedAt: 51,
+		topics: []cutTopicOffsets{{topic: "in", offsets: []cutPartitionOffset{
+			{partition: 0, offset: 2}, {partition: 1, offset: 7}}}},
+	}
+	runner, err := NewGroupRunner(countingTopology(t, mem, "in"), consumer, &mockProducer{},
+		WithStateStore(store), WithBarrierGroup("audit", cutReaderWith(t, cut)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	active := TopicPartition{Topic: "in", Partition: 0}
+	idle := TopicPartition{Topic: "in", Partition: 1}
+	runner.OnPartitionsAssigned([]TopicPartition{active, idle})
+	consumer.positions = map[TopicPartition]int64{idle: 7}
+	consumer.polls = []map[TopicPartition][]ConsumedRecord{
+		{active: rowRecords(t, mem, "in", 0, 0, 1)},
+	}
+
+	offsets, err := runner.RunOnce(t.Context(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := map[TopicPartition]int64{active: 2, idle: 7}
+	if !reflect.DeepEqual(offsets, want) {
+		t.Fatalf("barrier offsets = %v, want %v", offsets, want)
+	}
+	if len(store.saved) != 2 {
+		t.Fatalf("idle partition held the barrier: saves=%v", store.saved)
 	}
 }
 

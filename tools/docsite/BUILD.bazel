@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "docsite_lib",
-    srcs = ["main.go"],
+    srcs = [
+        "highlight.go",
+        "main.go",
+    ],
     importpath = "github.com/krabka-io/krabka-streams-go/tools/docsite",
     visibility = ["//visibility:private"],
 )
@@ -15,6 +18,9 @@ go_binary(
 
 go_test(
     name = "docsite_test",
-    srcs = ["main_test.go"],
+    srcs = [
+        "highlight_test.go",
+        "main_test.go",
+    ],
     embed = [":docsite_lib"],
 )

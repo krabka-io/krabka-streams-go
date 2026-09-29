@@ -262,7 +262,7 @@ func (s *site) examples(body *bytes.Buffer, pkg *packageDoc, examples []*doc.Exa
 		text := strings.TrimSpace(code.String())
 		text = strings.TrimPrefix(text, "{")
 		text = strings.TrimSuffix(text, "}")
-		fmt.Fprintf(body, "<pre>%s</pre>\n", html.EscapeString(dedent(text)))
+		fmt.Fprintf(body, "<pre>%s</pre>\n", highlightGo(dedent(text)))
 		if example.Output != "" {
 			fmt.Fprintf(body, "<p>Output:</p>\n<pre>%s</pre>\n", html.EscapeString(strings.TrimSpace(example.Output)))
 		}
@@ -278,7 +278,7 @@ func (s *site) code(body *bytes.Buffer, pkg *packageDoc, decl ast.Decl) {
 	if err := (&printer.Config{Mode: printer.UseSpaces, Tabwidth: 4}).Fprint(&buffer, pkg.fset, node); err != nil {
 		buffer.WriteString(err.Error())
 	}
-	fmt.Fprintf(body, "<pre class=\"decl\">%s</pre>\n", html.EscapeString(buffer.String()))
+	fmt.Fprintf(body, "<pre class=\"decl\">%s</pre>\n", highlightGo(buffer.String()))
 }
 
 func (pkg *packageDoc) fileFor(pos token.Pos) *ast.File {
@@ -429,6 +429,7 @@ code{background:var(--code-bg);border:1px solid var(--line);padding:.08rem .35re
 pre{max-width:100%;margin:.9rem 0;padding:.9rem 1rem;overflow-x:auto;background:var(--code-bg);border:1px solid var(--line);border-radius:.6rem;font-size:.85rem;line-height:1.55;font-weight:400;tab-size:4}
 pre code{padding:0;border:0;background:none;font-size:inherit}
 pre.decl{border-left:3px solid var(--accent)}
+.tk-k{color:#ff8466}.tk-t{color:#fcd9a8}.tk-l{color:#ffb39e}.tk-s{color:#86efac}.tk-n{color:#fdba74}.tk-f{color:#93c5fd}.tk-c{color:#8b949e}
 p.import code{display:inline-block;max-width:100%;overflow-wrap:anywhere;color:var(--link-hover);font-size:.95rem}
 table.packages{width:100%;border-collapse:separate;border-spacing:0;margin:1.5rem 0;overflow:hidden;background:var(--code-bg);border:1px solid var(--line);border-radius:.75rem}
 table.packages th,table.packages td{padding:.8rem 1rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}

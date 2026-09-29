@@ -37,6 +37,7 @@ func TestPagesCarryTheKrabkaTheme(t *testing.T) {
 		"JetBrains",
 		":focus-visible{outline:2px solid var(--accent)",
 		"prefers-reduced-motion",
+		"@media (max-width:48rem){.site-header{position:static}",
 		`<footer class="site-footer">`,
 	}
 	for name, page := range pages {

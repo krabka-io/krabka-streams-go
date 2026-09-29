@@ -398,7 +398,7 @@ var logoDataURI = "data:image/svg+xml," + url.PathEscape(logoSVG)
 const style = `@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 :root{color-scheme:dark;--bg:#080d1a;--surface:#0c1322;--code-bg:#0f172a;--line:#1e293b;--line-strong:#334155;--text:#e5e7eb;--heading:#f3f4f6;--muted:#9ca3af;--accent:#ff4d2e;--link:#ff8466;--link-hover:#ffb39e;--font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 *,*::before,*::after{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:4.5rem}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:6rem}
 body{margin:0;min-height:100vh;color:var(--text);font:400 16px/1.65 var(--font);background-color:var(--bg);background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(30,58,138,.22),transparent 70%),radial-gradient(ellipse 60% 40% at 100% 30%,rgba(15,23,42,.4),transparent 60%);background-attachment:fixed}
 a{color:var(--link);text-decoration:none}
 a:hover,a:focus-visible{color:var(--link-hover);text-decoration:underline}
@@ -449,5 +449,6 @@ details.example summary:hover{color:var(--link-hover)}
 details.example pre{background:var(--bg)}
 .site-footer{max-width:62rem;margin:0 auto;padding:1.5rem 1rem 3rem;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
 @media (max-width:40rem){main{padding-top:1.5rem}table.packages th,table.packages td{padding:.65rem .7rem}h2{font-size:1.3rem}}
+@media (max-width:48rem){.site-header{position:static}html{scroll-padding-top:1rem}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}}
 `

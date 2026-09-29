@@ -28,6 +28,7 @@ import (
 	"html"
 	"log"
 	"maps"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -367,41 +368,87 @@ func (s *site) layout(title string, body []byte) []byte {
 	var page bytes.Buffer
 	page.WriteString("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
 	page.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
-	fmt.Fprintf(&page, "<title>%s</title>\n<style>%s</style>\n</head>\n<body>\n", html.EscapeString(title), style)
-	page.WriteString("<nav><a href=\"index.html\">" + html.EscapeString(s.module) + "</a><span>")
+	page.WriteString("<meta name=\"color-scheme\" content=\"dark\">\n")
+	fmt.Fprintf(&page, "<title>%s</title>\n", html.EscapeString(title))
+	fmt.Fprintf(&page, "<link rel=\"icon\" type=\"image/svg+xml\" href=\"%s\">\n", logoDataURI)
+	fmt.Fprintf(&page, "<style>%s</style>\n</head>\n<body>\n", style)
+	page.WriteString("<header class=\"site-header\"><nav aria-label=\"Packages\">")
+	fmt.Fprintf(&page, "<a class=\"brand\" href=\"index.html\"><img class=\"logo\" src=\"%s\" alt=\"\" width=\"24\" height=\"24\">%s</a>",
+		logoDataURI, html.EscapeString(s.module))
+	page.WriteString("<span class=\"pkgs\">")
 	for _, pkg := range s.packages {
-		fmt.Fprintf(&page, " <a href=\"%s\">%s</a>", pkg.page, html.EscapeString(pkg.doc.Name))
+		fmt.Fprintf(&page, "<a href=\"%s\">%s</a>", pkg.page, html.EscapeString(pkg.doc.Name))
 	}
-	page.WriteString("</span></nav>\n<main>\n")
+	page.WriteString("</span></nav></header>\n<main>\n")
 	page.Write(body)
-	page.WriteString("\n</main>\n</body>\n</html>\n")
+	page.WriteString("\n</main>\n")
+	fmt.Fprintf(&page, "<footer class=\"site-footer\">API reference for %s, generated from godoc comments.</footer>\n", html.EscapeString(s.module))
+	page.WriteString("</body>\n</html>\n")
 	return page.Bytes()
 }
 
-const style = `
-:root { color-scheme: light dark; --line: #d7dbe0; --accent: #0b6e99; --code-bg: #f5f6f8; }
-@media (prefers-color-scheme: dark) { :root { --line: #3a4048; --accent: #6cb6d9; --code-bg: #22262c; } }
-* { box-sizing: border-box; }
-body { margin: 0; font: 16px/1.6 system-ui, sans-serif; }
-nav { display: flex; flex-wrap: wrap; gap: .75rem; align-items: baseline; padding: .75rem 1.25rem;
-      border-bottom: 1px solid var(--line); }
-nav > a { font-weight: 600; text-decoration: none; color: inherit; }
-nav span a { margin-right: .6rem; }
-main { max-width: 60rem; margin: 0 auto; padding: 1rem 1.25rem 4rem; }
-a { color: var(--accent); }
-h1 { font-size: 1.6rem; }
-h2 { border-bottom: 1px solid var(--line); padding-bottom: .25rem; margin-top: 2.5rem; }
-h3 { margin-top: 2rem; }
-h3 .source, h4 .source { font-size: .75rem; font-weight: 400; margin-left: .6rem; }
-pre { background: var(--code-bg); padding: .75rem 1rem; border-radius: 6px; overflow-x: auto;
-      font-size: .85rem; line-height: 1.5; }
-code { background: var(--code-bg); padding: .1rem .3rem; border-radius: 4px; font-size: .9em; }
-pre code { padding: 0; background: none; }
-table.packages { border-collapse: collapse; width: 100%; }
-table.packages th, table.packages td { text-align: left; padding: .4rem .75rem; border-bottom: 1px solid var(--line); }
-ul.index { list-style: none; padding-left: 0; columns: 1; }
-ul.index ul { list-style: none; padding-left: 1.25rem; }
-details.example { margin: .75rem 0; border: 1px solid var(--line); border-radius: 6px; padding: .5rem .75rem; }
-details.example summary { cursor: pointer; font-weight: 600; }
-p.import code { font-size: .95rem; }
+// logoSVG is the krabka logo, shared with the krabka.io sites.
+const logoSVG = `<svg viewBox="0 0 90 90" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg"><g transform="matrix(1.2410837,0,0,1.2410837,-10.847205,1.7895666)"><ellipse style="fill:none;stroke:#FF4D2E;stroke-width:7.6591;stroke-dasharray:none" cx="45" cy="45" rx="13.749256" ry="8.6910944"/><g><circle style="fill:none;stroke:#FF4D2E;stroke-width:5.01105;stroke-dasharray:none" cx="31.509378" cy="21.770279" r="7.1520071"/><path style="fill:none;stroke:#FF4D2E;stroke-width:5.01105;stroke-dasharray:none" d="m -37.432668,-19.054935 a 7.1520071,7.1520071 0 0 1 -4.415052,6.607593 7.1520071,7.1520071 0 0 1 -7.794188,-1.550361 7.1520071,7.1520071 0 0 1 -1.55036,-7.794187 7.1520071,7.1520071 0 0 1 6.607593,-4.415053" transform="rotate(-135)"/><rect style="fill:#FF4D2E;stroke:none;stroke-width:5.29167;stroke-dasharray:none" width="4.4989443" height="12.777002" x="14.19296" y="41.136307" transform="rotate(-30)"/></g><g transform="matrix(-1,0,0,1,89.997483,0)"><circle style="fill:none;stroke:#FF4D2E;stroke-width:5.01105;stroke-dasharray:none" cx="31.509378" cy="21.770279" r="7.1520071"/><path style="fill:none;stroke:#FF4D2E;stroke-width:5.01105;stroke-dasharray:none" d="m -37.432668,-19.054935 a 7.1520071,7.1520071 0 0 1 -4.415052,6.607593 7.1520071,7.1520071 0 0 1 -7.794188,-1.550361 7.1520071,7.1520071 0 0 1 -1.55036,-7.794187 7.1520071,7.1520071 0 0 1 6.607593,-4.415053" transform="rotate(-135)"/><rect style="fill:#FF4D2E;stroke:none;stroke-width:5.29167;stroke-dasharray:none" width="4.4989443" height="12.777002" x="14.19296" y="41.136307" transform="rotate(-30)"/></g></g></svg>`
+
+// logoDataURI is logoSVG percent-encoded for use in an href or src.
+var logoDataURI = "data:image/svg+xml," + url.PathEscape(logoSVG)
+
+// style is the krabka.io theme: one dark navy palette, Inter for text and
+// JetBrains Mono for code. The font import must stay the first rule.
+const style = `@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
+:root{color-scheme:dark;--bg:#080d1a;--surface:#0c1322;--code-bg:#0f172a;--line:#1e293b;--line-strong:#334155;--text:#e5e7eb;--heading:#f3f4f6;--muted:#9ca3af;--accent:#ff4d2e;--link:#ff8466;--link-hover:#ffb39e;--font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:6rem}
+body{margin:0;min-height:100vh;color:var(--text);font:400 16px/1.65 var(--font);background-color:var(--bg);background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(30,58,138,.22),transparent 70%),radial-gradient(ellipse 60% 40% at 100% 30%,rgba(15,23,42,.4),transparent 60%);background-attachment:fixed}
+a{color:var(--link);text-decoration:none}
+a:hover,a:focus-visible{color:var(--link-hover);text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.site-header{position:sticky;top:0;z-index:10;background:rgba(12,19,34,.92);border-bottom:1px solid var(--line);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.site-header nav{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1.25rem;max-width:62rem;margin:0 auto;padding:.7rem 1rem}
+.brand{display:inline-flex;align-items:center;gap:.6rem;color:var(--heading);font-weight:700;letter-spacing:-.01em;overflow-wrap:anywhere}
+.brand:hover,.brand:focus-visible{color:var(--heading)}
+.logo{display:block;flex:none;width:1.5rem;height:1.5rem}
+.pkgs{display:flex;flex-wrap:wrap;gap:.1rem .9rem;font-size:.9rem}
+.pkgs a{color:var(--muted)}
+.pkgs a:hover,.pkgs a:focus-visible{color:var(--link-hover)}
+main{max-width:62rem;margin:0 auto;padding:2rem 1rem 3rem;min-width:0}
+h1,h2,h3,h4{color:var(--heading);line-height:1.25;letter-spacing:-.015em}
+h1{margin:0 0 .75rem;font-size:clamp(1.6rem,4vw,2.25rem);font-weight:700;letter-spacing:-.02em;overflow-wrap:anywhere}
+h2{margin:3rem 0 1rem;padding-bottom:.5rem;border-bottom:1px solid var(--line);font-size:1.5rem;font-weight:700}
+h3{margin:2.5rem 0 .75rem;padding-top:1.25rem;border-top:1px solid var(--line);font-size:1.2rem;font-weight:600;overflow-wrap:anywhere}
+h4{margin:1.5rem 0 .5rem;font-size:1.02rem;font-weight:600;overflow-wrap:anywhere}
+h2+h3{margin-top:1rem;padding-top:0;border-top:0}
+h3:target,h4:target{color:var(--link-hover)}
+h3:target,h4:target,h2:target{box-shadow:-.75rem 0 0 -.5rem var(--accent)}
+h3 .source,h4 .source{margin-left:.6rem;font-family:var(--mono);font-size:.72rem;font-weight:500;color:var(--muted)}
+h3 .source:hover,h4 .source:hover{color:var(--link-hover)}
+p{margin:.75rem 0;overflow-wrap:anywhere}
+ul,ol{padding-left:1.4rem}
+code,pre{font-family:var(--mono)}
+code{background:var(--code-bg);border:1px solid var(--line);padding:.08rem .35rem;border-radius:.3rem;font-size:.88em;font-weight:500}
+pre{max-width:100%;margin:.9rem 0;padding:.9rem 1rem;overflow-x:auto;background:var(--code-bg);border:1px solid var(--line);border-radius:.6rem;font-size:.85rem;line-height:1.55;font-weight:400;tab-size:4}
+pre code{padding:0;border:0;background:none;font-size:inherit}
+pre.decl{border-left:3px solid var(--accent)}
+p.import code{display:inline-block;max-width:100%;overflow-wrap:anywhere;color:var(--link-hover);font-size:.95rem}
+table.packages{width:100%;border-collapse:separate;border-spacing:0;margin:1.5rem 0;overflow:hidden;background:var(--code-bg);border:1px solid var(--line);border-radius:.75rem}
+table.packages th,table.packages td{padding:.8rem 1rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+table.packages tr:last-child td{border-bottom:0}
+table.packages th{background:rgba(12,19,34,.9);color:var(--muted);font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+table.packages td{color:var(--muted)}
+table.packages td:first-child{font-family:var(--mono);font-size:.9rem;overflow-wrap:anywhere}
+table.packages tr:hover td{background:rgba(255,77,46,.05)}
+ul.index{margin:1rem 0;padding:1rem 1.25rem;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:.75rem;columns:16rem;column-gap:2rem;font-family:var(--mono);font-size:.88rem}
+ul.index li{margin:.2rem 0;break-inside:avoid;overflow-wrap:anywhere}
+ul.index ul{margin:.2rem 0 .5rem;padding-left:1.1rem;list-style:none;border-left:1px solid var(--line-strong)}
+ul.index ul li{padding-left:.6rem}
+details.example{margin:1rem 0;background:var(--surface);border:1px solid var(--line);border-radius:.6rem;padding:0 1rem}
+details.example[open]{border-color:var(--line-strong);padding-bottom:.25rem}
+details.example summary{padding:.65rem 0;cursor:pointer;color:var(--heading);font-weight:600;list-style-position:inside}
+details.example summary::marker{color:var(--accent)}
+details.example summary:hover{color:var(--link-hover)}
+details.example pre{background:var(--bg)}
+.site-footer{max-width:62rem;margin:0 auto;padding:1.5rem 1rem 3rem;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+@media (max-width:40rem){main{padding-top:1.5rem}table.packages th,table.packages td{padding:.65rem .7rem}h2{font-size:1.3rem}}
+@media (max-width:48rem){.site-header{position:static}html{scroll-padding-top:1rem}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}}
 `

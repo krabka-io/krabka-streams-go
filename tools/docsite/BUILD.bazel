@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "docsite_lib",
@@ -11,4 +11,10 @@ go_binary(
     name = "docsite",
     embed = [":docsite_lib"],
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "docsite_test",
+    srcs = ["main_test.go"],
+    embed = [":docsite_lib"],
 )

@@ -153,8 +153,12 @@ func (s *site) indexPage() []byte {
 	body.WriteString("\n<table class=\"packages\">\n<tr><th>Package</th><th>Synopsis</th></tr>\n")
 	for _, pkg := range s.packages {
 		// <wbr> after each slash lets a narrow column break between path
-		// elements rather than inside one.
-		importPath := strings.ReplaceAll(html.EscapeString(pkg.doc.ImportPath), "/", "/<wbr>")
+		// elements; the nowrap spans stop it breaking at the hyphens inside one.
+		elements := strings.Split(pkg.doc.ImportPath, "/")
+		for i, element := range elements {
+			elements[i] = "<span>" + html.EscapeString(element) + "</span>"
+		}
+		importPath := strings.Join(elements, "/<wbr>")
 		fmt.Fprintf(&body, "<tr><td><a href=\"%s\">%s</a></td><td>%s</td></tr>\n",
 			pkg.page, importPath, html.EscapeString(pkg.synopsis))
 	}
@@ -255,7 +259,9 @@ func (s *site) examples(body *bytes.Buffer, pkg *packageDoc, examples []*doc.Exa
 		fmt.Fprintf(body, "<details class=\"example\"><summary>%s</summary>\n", html.EscapeString(name))
 		body.WriteString(s.docHTML(pkg, example.Doc))
 		var code bytes.Buffer
-		node := any(example.Code)
+		// A bare block needs its comments handed over; a Play file carries
+		// its own.
+		node := any(&printer.CommentedNode{Node: example.Code, Comments: example.Comments})
 		if example.Play != nil {
 			node = example.Play
 		}
@@ -267,6 +273,8 @@ func (s *site) examples(body *bytes.Buffer, pkg *packageDoc, examples []*doc.Exa
 			// Only the bare block carries its own braces; a Play file is
 			// whole, and its last brace closes func main.
 			text = strings.TrimSuffix(strings.TrimPrefix(text, "{"), "}")
+		} else {
+			text = joinStdImports(text)
 		}
 		fmt.Fprintf(body, "<pre>%s</pre>\n", highlightGo(dedent(text)))
 		if example.Output != "" {
@@ -350,6 +358,49 @@ func (s *site) sourceLink(pkg *packageDoc, pos token.Pos) string {
 	href := s.repo + "/blob/main/" + path.Clean(filepath.ToSlash(position.Filename)) +
 		fmt.Sprintf("#L%d", position.Line)
 	return fmt.Sprintf("<a class=\"source\" href=\"%s\">source</a>", html.EscapeString(href))
+}
+
+// joinStdImports closes the gaps go/doc leaves between standard-library
+// imports when it drops the unused ones: the printer keeps the original line
+// positions, so every removed import shows up as a blank line.
+func joinStdImports(text string) string {
+	lines := strings.Split(text, "\n")
+	kept := make([]string, 0, len(lines))
+	inImports := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case trimmed == "import (":
+			inImports = true
+		case trimmed == ")":
+			inImports = false
+		case inImports && trimmed == "" && len(kept) > 0 && isStdImport(kept[len(kept)-1]) && isStdImport(nextNonBlank(lines[i+1:])):
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+func nextNonBlank(lines []string) string {
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+// isStdImport reports whether an import spec line names a standard-library
+// package: its first path element has no dot.
+func isStdImport(line string) bool {
+	fields := strings.Fields(line)
+	if len(fields) == 0 || !strings.HasPrefix(fields[len(fields)-1], `"`) {
+		return false
+	}
+	path := strings.Trim(fields[len(fields)-1], `"`)
+	first, _, _ := strings.Cut(path, "/")
+	return !strings.Contains(first, ".")
 }
 
 func dedent(text string) string {
@@ -446,6 +497,7 @@ table.packages tr:last-child td{border-bottom:0}
 table.packages th{background:rgba(12,19,34,.9);color:var(--muted);font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 table.packages td{color:var(--muted)}
 table.packages td:first-child{font-family:var(--mono);font-size:.9rem;overflow-wrap:anywhere}
+table.packages td:first-child span{white-space:nowrap}
 table.packages tr:hover td{background:rgba(255,77,46,.05)}
 ul.index{margin:1rem 0;padding:1rem 1.25rem;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:.75rem;columns:16rem;column-gap:2rem;font-family:var(--mono);font-size:.88rem}
 ul.index li{margin:.2rem 0;break-inside:avoid;overflow-wrap:anywhere}

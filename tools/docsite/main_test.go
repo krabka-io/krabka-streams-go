@@ -56,6 +56,13 @@ func TestPagesCarryTheKrabkaTheme(t *testing.T) {
 	}
 }
 
+func TestIndexKeepsEachImportPathElementWhole(t *testing.T) {
+	page := string(testSite(t).indexPage())
+	if want := "<span>example.com</span>/<wbr><span>m</span>"; !strings.Contains(page, want) {
+		t.Errorf("index lacks %q", want)
+	}
+}
+
 // exampleSite loads a package with two runnable examples. ExampleHello uses
 // only Hello, so go/doc turns it into a whole file (Play is set).
 // ExampleHello_bare refers to an identifier the package does not declare, so
@@ -67,7 +74,7 @@ func exampleSite(t *testing.T) *site {
 		"pkg.go": "// Package pkg is a fixture.\npackage pkg\n\n// Hello greets.\nfunc Hello() string { return \"hi\" }\n",
 		"play_test.go": "package pkg_test\n\nimport (\n\t\"fmt\"\n\n\tpkg \"example.com/m\"\n)\n\n" +
 			"func ExampleHello() {\n\tgreeting := pkg.Hello()\n\tfmt.Println(map[string]string{\n\t\t\"k\": greeting,\n\t})\n\t// Output: map[k:hi]\n}\n",
-		"bare_test.go": "package pkg_test\n\nimport pkg \"example.com/m\"\n\nfunc ExampleHello_bare() {\n\tif missing {\n\t\tpkg.Hello()\n\t}\n}\n",
+		"bare_test.go": "package pkg_test\n\nimport pkg \"example.com/m\"\n\nfunc ExampleHello_bare() {\n\t// First we greet.\n\tif missing {\n\t\tpkg.Hello() // twice\n\t}\n}\n",
 	}
 	var paths []string
 	for name, src := range files {
@@ -92,12 +99,25 @@ func TestExamplesKeepTheirClosingBraceAndIndentation(t *testing.T) {
 	}
 	page := plain(string(s.packagePage(s.packages[0])))
 	for _, want := range []string{
-		"if missing {\n    pkg.Hello()\n}\n", // bare block: outer braces trimmed, then dedented
+		"// First we greet.\nif missing {\n    pkg.Hello() // twice\n}\n", // bare block: outer braces trimmed, then dedented, comments kept
 		"import (\n    \"fmt\"\n",
 		"func main() {\n    greeting := pkg.Hello()\n    fmt.Println(map[string]string{\n        \"k\": greeting,\n    })\n}",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("example lost its layout, want %q in:\n%s", want, page)
+		}
+	}
+}
+
+func TestJoinStdImports(t *testing.T) {
+	for in, want := range map[string]string{
+		"import (\n\t\"fmt\"\n\t\"log\"\n\n\t\"time\"\n\n\t\"example.com/m\"\n)": "import (\n\t\"fmt\"\n\t\"log\"\n\t\"time\"\n\n\t\"example.com/m\"\n)",
+		"import (\n\t\"fmt\"\n\n\n\t\"time\"\n)":                                 "import (\n\t\"fmt\"\n\t\"time\"\n)",
+		"import (\n\t\"fmt\"\n\n\tx \"example.com/m\"\n)":                        "import (\n\t\"fmt\"\n\n\tx \"example.com/m\"\n)",
+		"func main() {\n\tfmt.Println()\n\n\tlog.Println()\n}":                   "func main() {\n\tfmt.Println()\n\n\tlog.Println()\n}",
+	} {
+		if got := joinStdImports(in); got != want {
+			t.Errorf("joinStdImports(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

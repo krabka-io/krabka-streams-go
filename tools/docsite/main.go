@@ -152,8 +152,15 @@ func (s *site) indexPage() []byte {
 		html.EscapeString(s.repo))
 	body.WriteString("\n<table class=\"packages\">\n<tr><th>Package</th><th>Synopsis</th></tr>\n")
 	for _, pkg := range s.packages {
+		// <wbr> after each slash lets a narrow column break between path
+		// elements; the nowrap spans stop it breaking at the hyphens inside one.
+		elements := strings.Split(pkg.doc.ImportPath, "/")
+		for i, element := range elements {
+			elements[i] = "<span>" + html.EscapeString(element) + "</span>"
+		}
+		importPath := strings.Join(elements, "/<wbr>")
 		fmt.Fprintf(&body, "<tr><td><a href=\"%s\">%s</a></td><td>%s</td></tr>\n",
-			pkg.page, html.EscapeString(pkg.doc.ImportPath), html.EscapeString(pkg.synopsis))
+			pkg.page, importPath, html.EscapeString(pkg.synopsis))
 	}
 	body.WriteString("</table>\n")
 	return s.layout(s.module, body.Bytes())
@@ -252,7 +259,9 @@ func (s *site) examples(body *bytes.Buffer, pkg *packageDoc, examples []*doc.Exa
 		fmt.Fprintf(body, "<details class=\"example\"><summary>%s</summary>\n", html.EscapeString(name))
 		body.WriteString(s.docHTML(pkg, example.Doc))
 		var code bytes.Buffer
-		node := any(example.Code)
+		// A bare block needs its comments handed over; a Play file carries
+		// its own.
+		node := any(&printer.CommentedNode{Node: example.Code, Comments: example.Comments})
 		if example.Play != nil {
 			node = example.Play
 		}
@@ -260,8 +269,13 @@ func (s *site) examples(body *bytes.Buffer, pkg *packageDoc, examples []*doc.Exa
 			code.WriteString(err.Error())
 		}
 		text := strings.TrimSpace(code.String())
-		text = strings.TrimPrefix(text, "{")
-		text = strings.TrimSuffix(text, "}")
+		if example.Play == nil {
+			// Only the bare block carries its own braces; a Play file is
+			// whole, and its last brace closes func main.
+			text = strings.TrimSuffix(strings.TrimPrefix(text, "{"), "}")
+		} else {
+			text = joinStdImports(text)
+		}
 		fmt.Fprintf(body, "<pre>%s</pre>\n", highlightGo(dedent(text)))
 		if example.Output != "" {
 			fmt.Fprintf(body, "<p>Output:</p>\n<pre>%s</pre>\n", html.EscapeString(strings.TrimSpace(example.Output)))
@@ -346,16 +360,62 @@ func (s *site) sourceLink(pkg *packageDoc, pos token.Pos) string {
 	return fmt.Sprintf("<a class=\"source\" href=\"%s\">source</a>", html.EscapeString(href))
 }
 
+// joinStdImports closes the gaps go/doc leaves between standard-library
+// imports when it drops the unused ones: the printer keeps the original line
+// positions, so every removed import shows up as a blank line.
+func joinStdImports(text string) string {
+	lines := strings.Split(text, "\n")
+	kept := make([]string, 0, len(lines))
+	inImports := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case trimmed == "import (":
+			inImports = true
+		case trimmed == ")":
+			inImports = false
+		case inImports && trimmed == "" && len(kept) > 0 && isStdImport(kept[len(kept)-1]) && isStdImport(nextNonBlank(lines[i+1:])):
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+func nextNonBlank(lines []string) string {
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+// isStdImport reports whether an import spec line names a standard-library
+// package: its first path element has no dot.
+func isStdImport(line string) bool {
+	fields := strings.Fields(line)
+	if len(fields) == 0 || !strings.HasPrefix(fields[len(fields)-1], `"`) {
+		return false
+	}
+	path := strings.Trim(fields[len(fields)-1], `"`)
+	first, _, _ := strings.Cut(path, "/")
+	return !strings.Contains(first, ".")
+}
+
 func dedent(text string) string {
 	lines := strings.Split(text, "\n")
 	prefix := ""
+	found := false
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
-		if prefix == "" || len(indent) < len(prefix) {
+		// An unindented line has the empty prefix, so test found, not prefix.
+		if !found || len(indent) < len(prefix) {
 			prefix = indent
+			found = true
 		}
 	}
 	for i, line := range lines {
@@ -405,7 +465,7 @@ a:hover,a:focus-visible{color:var(--link-hover);text-decoration:underline}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 .site-header{position:sticky;top:0;z-index:10;background:rgba(12,19,34,.92);border-bottom:1px solid var(--line);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .site-header nav{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1.25rem;max-width:62rem;margin:0 auto;padding:.7rem 1rem}
-.brand{display:inline-flex;align-items:center;gap:.6rem;color:var(--heading);font-weight:700;letter-spacing:-.01em;overflow-wrap:anywhere}
+.brand{display:inline-flex;align-items:center;gap:.6rem;color:var(--heading);font-weight:700;letter-spacing:-.01em;overflow-wrap:anywhere;text-wrap:balance}
 .brand:hover,.brand:focus-visible{color:var(--heading)}
 .logo{display:block;flex:none;width:1.5rem;height:1.5rem}
 .pkgs{display:flex;flex-wrap:wrap;gap:.1rem .9rem;font-size:.9rem}
@@ -437,6 +497,7 @@ table.packages tr:last-child td{border-bottom:0}
 table.packages th{background:rgba(12,19,34,.9);color:var(--muted);font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 table.packages td{color:var(--muted)}
 table.packages td:first-child{font-family:var(--mono);font-size:.9rem;overflow-wrap:anywhere}
+table.packages td:first-child span{white-space:nowrap}
 table.packages tr:hover td{background:rgba(255,77,46,.05)}
 ul.index{margin:1rem 0;padding:1rem 1.25rem;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:.75rem;columns:16rem;column-gap:2rem;font-family:var(--mono);font-size:.88rem}
 ul.index li{margin:.2rem 0;break-inside:avoid;overflow-wrap:anywhere}
@@ -449,7 +510,7 @@ details.example summary::marker{color:var(--accent)}
 details.example summary:hover{color:var(--link-hover)}
 details.example pre{background:var(--bg)}
 .site-footer{max-width:62rem;margin:0 auto;padding:1.5rem 1rem 3rem;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
-@media (max-width:40rem){main{padding-top:1.5rem}table.packages th,table.packages td{padding:.65rem .7rem}h2{font-size:1.3rem}}
+@media (max-width:40rem){main{padding-top:1.5rem}table.packages th,table.packages td{padding:.65rem .7rem}h2{font-size:1.3rem}table.packages,table.packages tbody,table.packages tr,table.packages td{display:block}table.packages tr:first-child{display:none}table.packages td:first-child{padding-bottom:0;border-bottom:0}}
 @media (max-width:48rem){.site-header{position:static}html{scroll-padding-top:1rem}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}}
 `

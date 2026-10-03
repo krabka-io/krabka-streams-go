@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -191,7 +192,7 @@ func TestGroupRunnerSubscribesToAllSources(t *testing.T) {
 	}
 	defer runner.Close()
 
-	if !reflect.DeepEqual(consumer.subscribed, []string{"in-a", "in-b"}) {
+	if !slices.Equal(consumer.subscribed, []string{"in-a", "in-b"}) {
 		t.Fatalf("unexpected subscription %v", consumer.subscribed)
 	}
 	if consumer.listener != RebalanceListener(runner) {

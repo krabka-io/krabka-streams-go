@@ -587,65 +587,25 @@ func appendGoValue(builder array.Builder, value any) error {
 		}
 		typed.Append(data)
 	case *array.Int64Builder:
-		number, err := exactInt64(value)
-		if err != nil {
-			return err
-		}
-		typed.Append(number)
+		return appendSigned(typed, value, math.MinInt64, math.MaxInt64)
 	case *array.Int32Builder:
-		number, err := exactIntRange(value, math.MinInt32, math.MaxInt32)
-		if err != nil {
-			return err
-		}
-		typed.Append(int32(number))
+		return appendSigned(typed, value, math.MinInt32, math.MaxInt32)
 	case *array.Int16Builder:
-		number, err := exactIntRange(value, math.MinInt16, math.MaxInt16)
-		if err != nil {
-			return err
-		}
-		typed.Append(int16(number))
+		return appendSigned(typed, value, math.MinInt16, math.MaxInt16)
 	case *array.Int8Builder:
-		number, err := exactIntRange(value, math.MinInt8, math.MaxInt8)
-		if err != nil {
-			return err
-		}
-		typed.Append(int8(number))
+		return appendSigned(typed, value, math.MinInt8, math.MaxInt8)
 	case *array.Uint8Builder:
-		number, err := exactUnsigned(value, 8)
-		if err != nil {
-			return err
-		}
-		typed.Append(uint8(number))
+		return appendUnsigned(typed, value, 8)
 	case *array.Uint16Builder:
-		number, err := exactUnsigned(value, 16)
-		if err != nil {
-			return err
-		}
-		typed.Append(uint16(number))
+		return appendUnsigned(typed, value, 16)
 	case *array.Uint32Builder:
-		number, err := exactUnsigned(value, 32)
-		if err != nil {
-			return err
-		}
-		typed.Append(uint32(number))
+		return appendUnsigned(typed, value, 32)
 	case *array.Uint64Builder:
-		number, err := exactUnsigned(value, 64)
-		if err != nil {
-			return err
-		}
-		typed.Append(number)
+		return appendUnsigned(typed, value, 64)
 	case *array.Float32Builder:
-		number, err := floatValue(value)
-		if err != nil {
-			return err
-		}
-		typed.Append(float32(number))
+		return appendFloat(typed, value)
 	case *array.Float64Builder:
-		number, err := floatValue(value)
-		if err != nil {
-			return err
-		}
-		typed.Append(number)
+		return appendFloat(typed, value)
 	case *array.BooleanBuilder:
 		flag, ok := value.(bool)
 		if !ok {
@@ -657,21 +617,13 @@ func appendGoValue(builder array.Builder, value any) error {
 			typed.Append(arrow.Date32FromTime(moment))
 			break
 		}
-		number, err := exactIntRange(value, math.MinInt32, math.MaxInt32)
-		if err != nil {
-			return err
-		}
-		typed.Append(arrow.Date32(number))
+		return appendSigned(typed, value, math.MinInt32, math.MaxInt32)
 	case *array.Date64Builder:
 		if moment, ok := value.(time.Time); ok {
 			typed.Append(arrow.Date64FromTime(moment))
 			break
 		}
-		number, err := exactInt64(value)
-		if err != nil {
-			return err
-		}
-		typed.Append(arrow.Date64(number))
+		return appendSigned(typed, value, math.MinInt64, math.MaxInt64)
 	case *array.TimestampBuilder:
 		if moment, ok := value.(time.Time); ok {
 			unit := typed.Type().(*arrow.TimestampType).Unit
@@ -682,31 +634,19 @@ func appendGoValue(builder array.Builder, value any) error {
 			typed.Append(converted)
 			break
 		}
-		number, err := exactInt64(value)
-		if err != nil {
-			return err
-		}
-		typed.Append(arrow.Timestamp(number))
+		return appendSigned(typed, value, math.MinInt64, math.MaxInt64)
 	case *array.Time32Builder:
 		if elapsed, ok := value.(time.Duration); ok {
 			typed.Append(arrow.Time32(elapsed / timeUnitDuration(typed.Type().(*arrow.Time32Type).Unit)))
 			break
 		}
-		number, err := exactIntRange(value, math.MinInt32, math.MaxInt32)
-		if err != nil {
-			return err
-		}
-		typed.Append(arrow.Time32(number))
+		return appendSigned(typed, value, math.MinInt32, math.MaxInt32)
 	case *array.Time64Builder:
 		if elapsed, ok := value.(time.Duration); ok {
 			typed.Append(arrow.Time64(elapsed / timeUnitDuration(typed.Type().(*arrow.Time64Type).Unit)))
 			break
 		}
-		number, err := exactInt64(value)
-		if err != nil {
-			return err
-		}
-		typed.Append(arrow.Time64(number))
+		return appendSigned(typed, value, math.MinInt64, math.MaxInt64)
 	case *array.Decimal128Builder:
 		decimalType := typed.Type().(*arrow.Decimal128Type)
 		unscaled, err := unscaledDecimal(value, decimalType.Scale)
@@ -781,6 +721,35 @@ func appendGoValue(builder array.Builder, value any) error {
 	default:
 		return fmt.Errorf("cannot write Arrow type %s", builder.Type())
 	}
+	return nil
+}
+
+// Numeric builders expose a typed Append method; constraints keep the checked
+// conversion shared without erasing the builder's element type.
+func appendSigned[T ~int8 | ~int16 | ~int32 | ~int64](builder interface{ Append(T) }, value any, minimum, maximum int64) error {
+	number, err := exactIntRange(value, minimum, maximum)
+	if err != nil {
+		return err
+	}
+	builder.Append(T(number))
+	return nil
+}
+
+func appendUnsigned[T ~uint8 | ~uint16 | ~uint32 | ~uint64](builder interface{ Append(T) }, value any, bits int) error {
+	number, err := exactUnsigned(value, bits)
+	if err != nil {
+		return err
+	}
+	builder.Append(T(number))
+	return nil
+}
+
+func appendFloat[T ~float32 | ~float64](builder interface{ Append(T) }, value any) error {
+	number, err := floatValue(value)
+	if err != nil {
+		return err
+	}
+	builder.Append(T(number))
 	return nil
 }
 

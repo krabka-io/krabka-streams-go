@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -288,7 +289,7 @@ func TestBarrierDropsAPartitionTheRunnerLost(t *testing.T) {
 	if !reflect.DeepEqual(offsets, map[TopicPartition]int64{first: 2}) {
 		t.Fatalf("a lost partition must not hold the barrier, got %v", offsets)
 	}
-	if len(barriers) != 1 || !reflect.DeepEqual(barriers[0].Partitions, []int{0}) {
+	if len(barriers) != 1 || !slices.Equal(barriers[0].Partitions, []int{0}) {
 		t.Fatalf("unexpected barriers %+v", barriers)
 	}
 	if !reflect.DeepEqual(store.saved[len(store.saved)-1], snapshotKey{partition: 0, epoch: 5}) {

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Require Go 1.27.1 in the module and Bazel SDK. Use generic collection and
+  error helpers, typed reflection, and shared generic Arrow numeric conversions.
+
 - `coordination`: leader election, leases, and fencing tokens. The leadership
   epoch is the producer epoch that Kafka's transaction coordinator mints for
   `transactional.id = <role>`, so the broker fences a deposed leader and the

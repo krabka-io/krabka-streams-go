@@ -12,8 +12,9 @@ import (
 //
 // Key:   version 0, kind 2 (cut), group "orders-cut", epoch 7.
 // Value: version 0, triggered 1724500000000, completed 1724500000042,
-//        status 0 (complete), topic "orders" with partitions 0 at offset 1024
-//        and 1 at offset 2048, and no missing partitions.
+//
+//	status 0 (complete), topic "orders" with partitions 0 at offset 1024
+//	and 1 at offset 2048, and no missing partitions.
 const (
 	goldenCutKeyHex   = "00000002000a6f72646572732d6375740000000000000007"
 	goldenCutValueHex = "0000000001918435bd00000001918435bd2a000000000100066f72" +

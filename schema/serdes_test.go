@@ -3,6 +3,7 @@ package schema
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -232,8 +233,8 @@ func TestUnknownWriterSchemaSurfacesPendingError(t *testing.T) {
 
 	_, err = serde.Deserialize("orders", Encode(99, []byte{2, 'h', 'i'}))
 
-	var pending *FetchPendingError
-	if !errors.As(err, &pending) || pending.SchemaID != 99 {
+	pending, ok := errors.AsType[*FetchPendingError](err)
+	if !ok || pending.SchemaID != 99 {
 		t.Fatalf("expected FetchPendingError for id 99, got %v", err)
 	}
 }
@@ -313,7 +314,7 @@ func TestProtobufPrintsFullDescriptorsAndFramesNestedIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(frame.MessageIndexes, []int{0, 0}) {
+	if !slices.Equal(frame.MessageIndexes, []int{0, 0}) {
 		t.Fatalf("unexpected message indexes %v", frame.MessageIndexes)
 	}
 }

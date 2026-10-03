@@ -152,10 +152,10 @@ func Filter(mem memory.Allocator, predicate RowPredicate) *BuiltinOp {
 // whichever reserved metadata columns exist in the input. Duplicate names are
 // ignored after the first; a missing name fails.
 func Select(mem memory.Allocator, columns ...string) *BuiltinOp {
-	requested := append([]string{}, columns...)
+	requested := slices.Clone(columns)
 	return newBuiltinOp(func() builtinOperation {
 		return statelessOperation(func(batch arrow.Record) (arrow.Record, error) {
-			selected := append([]string{}, requested...)
+			selected := slices.Clone(requested)
 			for _, reserved := range reservedColumns {
 				if columnByName(batch, reserved) != nil {
 					selected = append(selected, reserved)
@@ -171,7 +171,7 @@ func Select(mem memory.Allocator, columns ...string) *BuiltinOp {
 // appended after the existing columns. Reserved names are rejected here, at
 // construction time.
 func WithColumns(mem memory.Allocator, columns ...DerivedColumn) (*BuiltinOp, error) {
-	derived := append([]DerivedColumn{}, columns...)
+	derived := slices.Clone(columns)
 	names := make([]string, len(derived))
 	for i, column := range derived {
 		names[i] = column.Field.Name
@@ -192,8 +192,8 @@ func WithColumns(mem memory.Allocator, columns ...DerivedColumn) (*BuiltinOp, er
 // columns first and aggregate columns after them. Metadata columns are
 // dropped unless you group by them.
 func GroupBy(mem memory.Allocator, keys []string, aggregations ...Aggregation) *BuiltinOp {
-	keyColumns := append([]string{}, keys...)
-	aggregates := append([]Aggregation{}, aggregations...)
+	keyColumns := slices.Clone(keys)
+	aggregates := slices.Clone(aggregations)
 	return newBuiltinOp(func() builtinOperation {
 		return &groupByOperation{keys: keyColumns, aggregations: aggregates, mem: mem, streamTime: math.MinInt64}
 	})
@@ -218,8 +218,8 @@ func WindowedGroupByWithRetention(mem memory.Allocator, keys []string, windowSiz
 	if retentionMillis < windowMillis {
 		return nil, fmt.Errorf("retention must not be shorter than windowSize")
 	}
-	keyColumns := append([]string{}, keys...)
-	aggregates := append([]Aggregation{}, aggregations...)
+	keyColumns := slices.Clone(keys)
+	aggregates := slices.Clone(aggregations)
 	return newBuiltinOp(func() builtinOperation {
 		return &groupByOperation{
 			keys:            keyColumns,

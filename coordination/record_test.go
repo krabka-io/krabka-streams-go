@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -141,7 +142,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 		},
 		{
 			name:    "trailing bytes after a key",
-			data:    append(append([]byte{}, registrationKey...), 0x00),
+			data:    append(slices.Clone(registrationKey), 0x00),
 			decode:  func(data []byte) error { _, err := DecodeKey(data); return err },
 			part:    "key",
 			message: "trailing bytes",
@@ -155,7 +156,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 		},
 		{
 			name:    "an unknown record kind",
-			data:    append(append([]byte{}, registrationKey[:2]...), append([]byte{0x00, 0x09}, registrationKey[4:]...)...),
+			data:    append(slices.Clone(registrationKey[:2]), append([]byte{0x00, 0x09}, registrationKey[4:]...)...),
 			decode:  func(data []byte) error { _, err := DecodeKey(data); return err },
 			part:    "key",
 			message: "unknown coordination state record kind 9",
@@ -176,7 +177,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 		},
 		{
 			name:    "a lease key that names a member",
-			data:    append(append([]byte{}, leaseKey[:len(leaseKey)-2]...), append([]byte{0x00, 0x01}, 'x')...),
+			data:    append(slices.Clone(leaseKey[:len(leaseKey)-2]), append([]byte{0x00, 0x01}, 'x')...),
 			decode:  func(data []byte) error { _, err := DecodeKey(data); return err },
 			part:    "key",
 			message: "a lease key carries the empty member string",
@@ -197,7 +198,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 		},
 		{
 			name:    "trailing bytes after a registration value",
-			data:    append(append([]byte{}, registrationValue...), 0x00),
+			data:    append(slices.Clone(registrationValue), 0x00),
 			decode:  func(data []byte) error { _, err := DecodeRegistration(data); return err },
 			part:    "registration value",
 			message: "trailing bytes",
@@ -218,7 +219,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 		},
 		{
 			name:    "trailing bytes after a lease value",
-			data:    append(append([]byte{}, leaseValue...), 0x00),
+			data:    append(slices.Clone(leaseValue), 0x00),
 			decode:  func(data []byte) error { _, err := DecodeLease(data); return err },
 			part:    "lease value",
 			message: "trailing bytes",
@@ -226,7 +227,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 		{
 			name: "a negative producer id",
 			data: func() []byte {
-				data := append([]byte{}, leaseValue...)
+				data := slices.Clone(leaseValue)
 				for index := 10; index < 18; index++ {
 					data[index] = 0xFF
 				}
@@ -244,8 +245,8 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 			if err == nil {
 				t.Fatalf("the decoder took %v, and the bytes are malformed", testCase.data)
 			}
-			var format *FormatError
-			if !errors.As(err, &format) {
+			format, ok := errors.AsType[*FormatError](err)
+			if !ok {
 				t.Fatalf("the decoder returned %T, and it must return a *FormatError", err)
 			}
 			if format.Part != testCase.part {
@@ -263,7 +264,7 @@ func TestTheDecoderRejectsAMalformedRecordAndNamesTheRecordPart(t *testing.T) {
 func TestTheDecoderReturnsAnErrorAndDoesNotPanicOnArbitraryBytes(t *testing.T) {
 	seed := EncodeKey(RegistrationKey(mustRole(t, "controller"), mustMember(t, "node-1")))
 	for cut := range len(seed) + 1 {
-		for _, mutant := range [][]byte{seed[:cut], append(append([]byte{}, seed[:cut]...), 0xFF, 0xFE)} {
+		for _, mutant := range [][]byte{seed[:cut], append(slices.Clone(seed[:cut]), 0xFF, 0xFE)} {
 			if _, err := DecodeKey(mutant); err == nil && cut != len(seed) {
 				t.Errorf("DecodeKey took the truncated buffer %v", mutant)
 			}

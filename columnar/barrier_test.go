@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -216,7 +217,7 @@ func TestRejectsMalformedBarrierStateRecords(t *testing.T) {
 			part: "key", message: "unsupported barrier state key version 1",
 		},
 		{
-			name: "trailing bytes in the key", key: append(append([]byte{}, validKey...), 0), value: validValue,
+			name: "trailing bytes in the key", key: append(slices.Clone(validKey), 0), value: validValue,
 			part: "key", message: "trailing bytes in barrier state key",
 		},
 		{
@@ -245,7 +246,7 @@ func TestRejectsMalformedBarrierStateRecords(t *testing.T) {
 		},
 		{
 			name: "trailing bytes in the cut value", key: validKey,
-			value: append(append([]byte{}, validValue...), 0),
+			value: append(slices.Clone(validValue), 0),
 			part:  "cut value", message: "trailing bytes in barrier state cut value",
 		},
 	}
@@ -255,8 +256,8 @@ func TestRejectsMalformedBarrierStateRecords(t *testing.T) {
 			if cut != nil {
 				t.Fatalf("malformed bytes must decode to no cut, got %+v", cut)
 			}
-			var formatError *BarrierFormatError
-			if !errors.As(err, &formatError) {
+			formatError, ok := errors.AsType[*BarrierFormatError](err)
+			if !ok {
 				t.Fatalf("expected a barrier format error, got %v", err)
 			}
 			if formatError.Part != testCase.part || formatError.Error() != testCase.message {

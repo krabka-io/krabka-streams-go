@@ -2,7 +2,7 @@ package columnar
 
 import (
 	"bytes"
-	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -175,7 +175,7 @@ func TestRunsReusableTopologyAndFanOut(t *testing.T) {
 	}
 
 	topics := []string{firstRun[0].Topic, firstRun[1].Topic}
-	if !reflect.DeepEqual(topics, []string{"out-a", "out-b"}) {
+	if !slices.Equal(topics, []string{"out-a", "out-b"}) {
 		t.Fatalf("unexpected fan-out topics %v", topics)
 	}
 	if len(secondRun) != 2 {

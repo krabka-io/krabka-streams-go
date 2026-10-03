@@ -56,10 +56,7 @@ func highlightGo(src string) string {
 		if text == "" {
 			text = it.tok.String()
 		}
-		end := it.offset + len(text)
-		if end > len(src) {
-			end = len(src)
-		}
+		end := min(it.offset+len(text), len(src))
 		raw := src[it.offset:end]
 		class := ""
 		switch {

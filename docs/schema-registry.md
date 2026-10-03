@@ -58,8 +58,7 @@ failures, HTTP 429, and 5xx responses twice by default.
 
 ```go
 if _, err := client.SchemaByID(ctx, 7); err != nil {
-    var registryErr *schema.RegistryError
-    if errors.As(err, &registryErr) && registryErr.StatusCode == 404 {
+    if registryErr, ok := errors.AsType[*schema.RegistryError](err); ok && registryErr.StatusCode == 404 {
         // the ID does not exist
     }
 }

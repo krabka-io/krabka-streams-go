@@ -145,8 +145,7 @@ func (c *SchemaCache) Prewarm(ctx context.Context) error {
 // to find out which subjects failed and why.
 func (c *SchemaCache) PrewarmReport(ctx context.Context) PrewarmReport {
 	c.mu.Lock()
-	subjects := make(map[string]internedSchema, len(c.interned))
-	maps.Copy(subjects, c.interned)
+	subjects := maps.Clone(c.interned)
 	c.mu.Unlock()
 
 	type outcome struct {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -83,8 +84,8 @@ func TestReportsRegistryStatusAndBody(t *testing.T) {
 
 	_, err = client.SchemaByID(t.Context(), 7)
 
-	var registryFailure *RegistryError
-	if !errors.As(err, &registryFailure) {
+	registryFailure, ok := errors.AsType[*RegistryError](err)
+	if !ok {
 		t.Fatalf("expected RegistryError, got %v", err)
 	}
 	if registryFailure.StatusCode != 404 {
@@ -110,11 +111,11 @@ func TestPreservesContextPathAndSupportsRegistryManagement(t *testing.T) {
 	ctx := t.Context()
 
 	subjects, err := client.Subjects(ctx)
-	if err != nil || !reflect.DeepEqual(subjects, []string{"orders-value"}) {
+	if err != nil || !slices.Equal(subjects, []string{"orders-value"}) {
 		t.Fatalf("unexpected subjects %v (%v)", subjects, err)
 	}
 	versions, err := client.Versions(ctx, "orders-value")
-	if err != nil || !reflect.DeepEqual(versions, []int{1, 2}) {
+	if err != nil || !slices.Equal(versions, []int{1, 2}) {
 		t.Fatalf("unexpected versions %v (%v)", versions, err)
 	}
 	level, err := client.SubjectCompatibility(ctx, "orders-value")
@@ -126,7 +127,7 @@ func TestPreservesContextPathAndSupportsRegistryManagement(t *testing.T) {
 		t.Fatalf("unexpected level %q (%v)", updated, err)
 	}
 	deleted, err := client.DeleteSubject(ctx, "orders-value", true)
-	if err != nil || !reflect.DeepEqual(deleted, []int{1, 2}) {
+	if err != nil || !slices.Equal(deleted, []int{1, 2}) {
 		t.Fatalf("unexpected deleted versions %v (%v)", deleted, err)
 	}
 }
@@ -142,8 +143,8 @@ func TestRetriesServerErrorsAndTransportFailures(t *testing.T) {
 
 	_, err = client.Subjects(t.Context())
 
-	var registryFailure *RegistryError
-	if !errors.As(err, &registryFailure) || registryFailure.StatusCode != 500 {
+	registryFailure, ok := errors.AsType[*RegistryError](err)
+	if !ok || registryFailure.StatusCode != 500 {
 		t.Fatalf("expected a 500 RegistryError, got %v", err)
 	}
 	if stub.count("GET", "/subjects") != 3 {

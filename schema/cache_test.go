@@ -143,6 +143,6 @@ func newTestCache(t *testing.T, stub *registryStub) *SchemaCache {
 }
 
 func isFetchPending(err error) bool {
-	var pending *FetchPendingError
-	return errors.As(err, &pending)
+	_, ok := errors.AsType[*FetchPendingError](err)
+	return ok
 }

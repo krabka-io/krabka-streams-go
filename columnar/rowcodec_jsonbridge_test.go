@@ -2,6 +2,7 @@ package columnar
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestRowCodecAssemblesAndExplodesRows(t *testing.T) {
 		t.Fatalf("unexpected row count %d", batch.NumRows())
 	}
 	expectedColumns := []string{"value", "__key", "__timestamp", "__partition", "__offset", "__headers"}
-	if !reflect.DeepEqual(columnNames(batch), expectedColumns) {
+	if !slices.Equal(columnNames(batch), expectedColumns) {
 		t.Fatalf("unexpected columns %v", columnNames(batch))
 	}
 
@@ -61,7 +62,7 @@ func TestJSONBridgeRoundTripsRecordsAndNestedJSON(t *testing.T) {
 	}
 	defer batch.Release()
 
-	if !reflect.DeepEqual(columnNames(batch), []string{"id", "amount", "tags"}) {
+	if !slices.Equal(columnNames(batch), []string{"id", "amount", "tags"}) {
 		t.Fatalf("unexpected columns %v", columnNames(batch))
 	}
 	back, err := bridge.BatchToRows(batch)
@@ -129,7 +130,7 @@ func TestJSONBridgeDerivesStableRequiredFieldsFromJSONSchema(t *testing.T) {
 		batch.Schema().Field(1).Nullable,
 		batch.Schema().Field(2).Nullable,
 	}
-	if !reflect.DeepEqual(nullables, []bool{false, true, true}) {
+	if !slices.Equal(nullables, []bool{false, true, true}) {
 		t.Fatalf("unexpected nullability %v", nullables)
 	}
 	back, err := bridge.BatchToRows(batch)

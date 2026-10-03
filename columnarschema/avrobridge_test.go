@@ -3,6 +3,7 @@ package columnarschema
 import (
 	"math/big"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -224,7 +225,7 @@ func TestBridgeExposesTheDerivedArrowSchema(t *testing.T) {
 	}
 
 	expected := []string{"child", "tags", "labels", "color", "checksum", "either"}
-	if !reflect.DeepEqual(names, expected) {
+	if !slices.Equal(names, expected) {
 		t.Fatalf("unexpected schema fields %v", names)
 	}
 }

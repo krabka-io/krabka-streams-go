@@ -1,9 +1,11 @@
 package coordination
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -40,7 +42,7 @@ func NewKafkaTransport(lease LeaseConfig, brokers ...string) (*KafkaTransport, e
 	if err != nil {
 		return nil, fmt.Errorf("create Kafka client: %w", err)
 	}
-	return &KafkaTransport{brokers: append([]string(nil), brokers...), plain: plain, timeout: lease.Duration(), roles: make(map[FencingToken]*kafkaRoleProducer)}, nil
+	return &KafkaTransport{brokers: slices.Clone(brokers), plain: plain, timeout: lease.Duration(), roles: make(map[FencingToken]*kafkaRoleProducer)}, nil
 }
 
 // AcquireEpoch initializes a transactional producer whose id is the role.
@@ -130,7 +132,7 @@ func (t *KafkaTransport) ReadPartition(ctx context.Context, partition TopicParti
 			}
 		})
 		fetches.EachRecord(func(record *kgo.Record) {
-			records = append(records, StateRecord{Offset: record.Offset, Key: append([]byte(nil), record.Key...), Value: append([]byte(nil), record.Value...)})
+			records = append(records, StateRecord{Offset: record.Offset, Key: bytes.Clone(record.Key), Value: bytes.Clone(record.Value)})
 			nextOffset = max(nextOffset, record.Offset+1)
 		})
 		if lastStableOffset >= 0 && nextOffset >= lastStableOffset {

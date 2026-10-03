@@ -14,7 +14,10 @@
 // you release; batches inside a running topology belong to the framework.
 package columnar
 
-import "bytes"
+import (
+	"bytes"
+	"slices"
+)
 
 // RecordHeader is one ordered Kafka record header. Header values may be nil,
 // and keys may repeat.
@@ -58,7 +61,7 @@ type ConsumedRecord struct {
 // NewConsumedRecord copies its arguments into an independent record.
 func NewConsumedRecord(key, value []byte, timestamp int64, partition int, offset int64, headers ...RecordHeader) ConsumedRecord {
 	return ConsumedRecord{
-		Key:       cloneBytes(key),
+		Key:       bytes.Clone(key),
 		Value:     append([]byte{}, value...),
 		Timestamp: timestamp,
 		Partition: partition,
@@ -87,7 +90,7 @@ type ProduceRecord struct {
 // NewProduceRecord copies its arguments into an independent record.
 func NewProduceRecord(key, value []byte, timestamp int64, headers ...RecordHeader) ProduceRecord {
 	return ProduceRecord{
-		Key:       cloneBytes(key),
+		Key:       bytes.Clone(key),
 		Value:     append([]byte{}, value...),
 		Timestamp: timestamp,
 		Headers:   cloneHeaders(headers),
@@ -97,16 +100,8 @@ func NewProduceRecord(key, value []byte, timestamp int64, headers ...RecordHeade
 // Equal reports whether two produce records carry the same key, value,
 // timestamp, and headers.
 func (r ProduceRecord) Equal(other ProduceRecord) bool {
-	if !bytes.Equal(r.Key, other.Key) || !bytes.Equal(r.Value, other.Value) ||
-		r.Timestamp != other.Timestamp || len(r.Headers) != len(other.Headers) {
-		return false
-	}
-	for i, header := range r.Headers {
-		if !header.Equal(other.Headers[i]) {
-			return false
-		}
-	}
-	return true
+	return bytes.Equal(r.Key, other.Key) && bytes.Equal(r.Value, other.Value) &&
+		r.Timestamp == other.Timestamp && slices.EqualFunc(r.Headers, other.Headers, RecordHeader.Equal)
 }
 
 // ProducedToTopic pairs a produced record with its sink topic.
@@ -118,17 +113,13 @@ type ProducedToTopic struct {
 	Record ProduceRecord
 }
 
-func cloneBytes(value []byte) []byte {
-	return bytes.Clone(value)
-}
-
 func cloneHeaders(headers []RecordHeader) []RecordHeader {
 	if len(headers) == 0 {
 		return nil
 	}
 	result := make([]RecordHeader, len(headers))
 	for i, header := range headers {
-		result[i] = RecordHeader{Key: header.Key, Value: cloneBytes(header.Value)}
+		result[i] = RecordHeader{Key: header.Key, Value: bytes.Clone(header.Value)}
 	}
 	return result
 }

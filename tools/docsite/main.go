@@ -186,7 +186,7 @@ func (s *site) packagePage(pkg *packageDoc) []byte {
 	for _, typ := range pkg.doc.Types {
 		fmt.Fprintf(&body, "<li><a href=\"#%s\">type %s</a>\n", typ.Name, typ.Name)
 		var members []string
-		for _, fn := range append(append([]*doc.Func{}, typ.Funcs...), typ.Methods...) {
+		for _, fn := range slices.Concat(typ.Funcs, typ.Methods) {
 			members = append(members, fmt.Sprintf("<li><a href=\"#%s\">%s</a></li>",
 				anchor(fn), html.EscapeString(signature(pkg, fn))))
 		}
@@ -222,7 +222,7 @@ func (s *site) packagePage(pkg *packageDoc) []byte {
 			s.code(&body, pkg, typ.Decl)
 			body.WriteString(s.docHTML(pkg, typ.Doc))
 			s.examples(&body, pkg, typ.Examples)
-			for _, value := range append(append([]*doc.Value{}, typ.Consts...), typ.Vars...) {
+			for _, value := range slices.Concat(typ.Consts, typ.Vars) {
 				s.value(&body, pkg, value)
 			}
 			for _, fn := range typ.Funcs {

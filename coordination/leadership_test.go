@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func (c *fakeCluster) ReadPartition(_ context.Context, partition TopicPartition)
 	if c.readErr != nil {
 		return nil, c.readErr
 	}
-	return append([]StateRecord{}, c.records[partition]...), nil
+	return slices.Clone(c.records[partition]), nil
 }
 
 func (c *fakeCluster) Append(_ context.Context, partition TopicPartition, key, value []byte) error {

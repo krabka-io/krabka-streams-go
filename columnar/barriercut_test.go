@@ -2,6 +2,7 @@ package columnar
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -75,21 +76,21 @@ func TestReadsCompleteCutsAndSkipsTheOtherRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(epochsOf(all), []int64{1, 4}) {
+	if !slices.Equal(epochsOf(all), []int64{1, 4}) {
 		t.Fatalf("unexpected epochs %v, the partial cut must not be alignable", epochsOf(all))
 	}
 	after, err := reader.CompleteCutsAfter(t.Context(), "audit", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(epochsOf(after), []int64{4}) {
+	if !slices.Equal(epochsOf(after), []int64{4}) {
 		t.Fatalf("unexpected epochs after epoch 1 %v", epochsOf(after))
 	}
 	other, err := reader.CompleteCutsAfter(t.Context(), "shadow", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(epochsOf(other), []int64{3}) {
+	if !slices.Equal(epochsOf(other), []int64{3}) {
 		t.Fatalf("unexpected epochs of the other group %v", epochsOf(other))
 	}
 }
@@ -147,7 +148,7 @@ func TestSecondReadResumesWhereTheFirstStopped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(epochsOf(both), []int64{1, 2}) {
+	if !slices.Equal(epochsOf(both), []int64{1, 2}) {
 		t.Fatalf("the reader must keep the cuts it read, got %v", epochsOf(both))
 	}
 }

@@ -2,8 +2,10 @@ package columnar
 
 import (
 	"bytes"
+	"math"
 	"math/big"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -163,7 +165,7 @@ func TestJoinsAcrossBatchesAndRestoresOnlyTheMatchingPartition(t *testing.T) {
 	}
 	defer result.Release()
 	expected := []string{"left_user", "left_amount", "right_user", "right_amount"}
-	if !reflect.DeepEqual(columnNames(result), expected) {
+	if !slices.Equal(columnNames(result), expected) {
 		t.Fatalf("unexpected joined columns %v", columnNames(result))
 	}
 	if int64Column(t, result, "left_amount").Value(0) != 5 ||
@@ -315,5 +317,60 @@ func TestValueFacadeHandlesTimeColumns(t *testing.T) {
 		if Value(batch.Column(column), 1) != nil {
 			t.Fatal("null must read as nil")
 		}
+	}
+}
+
+func TestValueFacadeNumericConversions(t *testing.T) {
+	cases := []struct {
+		name      string
+		typ       arrow.DataType
+		input     any
+		want      any
+		wantError bool
+	}{
+		{"int8", arrow.PrimitiveTypes.Int8, int64(math.MinInt8), int8(math.MinInt8), false},
+		{"int16", arrow.PrimitiveTypes.Int16, int64(math.MaxInt16), int16(math.MaxInt16), false},
+		{"int32", arrow.PrimitiveTypes.Int32, int64(math.MinInt32), int32(math.MinInt32), false},
+		{"int64", arrow.PrimitiveTypes.Int64, int64(math.MaxInt64), int64(math.MaxInt64), false},
+		{"uint8", arrow.PrimitiveTypes.Uint8, uint64(math.MaxUint8), uint8(math.MaxUint8), false},
+		{"uint16", arrow.PrimitiveTypes.Uint16, uint64(math.MaxUint16), uint16(math.MaxUint16), false},
+		{"uint32", arrow.PrimitiveTypes.Uint32, uint64(math.MaxUint32), uint32(math.MaxUint32), false},
+		{"uint64", arrow.PrimitiveTypes.Uint64, uint64(math.MaxUint64), uint64(math.MaxUint64), false},
+		{"float32", arrow.PrimitiveTypes.Float32, float64(1.5), float32(1.5), false},
+		{"float64", arrow.PrimitiveTypes.Float64, int32(7), float64(7), false},
+		{"date32", arrow.FixedWidthTypes.Date32, int64(math.MaxInt32), int32(math.MaxInt32), false},
+		{"date64", arrow.FixedWidthTypes.Date64, int64(math.MaxInt64), int64(math.MaxInt64), false},
+		{"timestamp", arrow.FixedWidthTypes.Timestamp_ms, int64(42), int64(42), false},
+		{"time32", arrow.FixedWidthTypes.Time32s, int64(42), int32(42), false},
+		{"time64", arrow.FixedWidthTypes.Time64ns, int64(42), int64(42), false},
+		{"signed overflow", arrow.PrimitiveTypes.Int8, int64(math.MaxInt8) + 1, nil, true},
+		{"signed underflow", arrow.PrimitiveTypes.Int16, int64(math.MinInt16) - 1, nil, true},
+		{"unsigned overflow", arrow.PrimitiveTypes.Uint8, uint64(math.MaxUint8) + 1, nil, true},
+		{"negative unsigned", arrow.PrimitiveTypes.Uint64, int64(-1), nil, true},
+		{"fractional integer", arrow.PrimitiveTypes.Int32, 1.5, nil, true},
+		{"invalid float", arrow.PrimitiveTypes.Float32, "invalid", nil, true},
+		{"date overflow", arrow.FixedWidthTypes.Date32, int64(math.MaxInt32) + 1, nil, true},
+		{"null", arrow.PrimitiveTypes.Int8, nil, nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			builder := array.NewBuilder(checkedAllocator(t), tc.typ)
+			defer builder.Release()
+			err := AppendValue(builder, tc.input)
+			if tc.wantError {
+				if err == nil || builder.Len() != 0 {
+					t.Fatalf("invalid value must fail without appending: len=%d, err=%v", builder.Len(), err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			values := builder.NewArray()
+			defer values.Release()
+			if got := Value(values, 0); got != tc.want {
+				t.Fatalf("got %T(%v), want %T(%v)", got, got, tc.want, tc.want)
+			}
+		})
 	}
 }

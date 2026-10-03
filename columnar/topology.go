@@ -152,7 +152,7 @@ func (t *Topology) AddSource(name string, topics []string, codec BatchCodec) (No
 	return t.add(nodeDefinition{
 		name:         name,
 		kind:         nodeSource,
-		sourceTopics: append([]string{}, topics...),
+		sourceTopics: slices.Clone(topics),
 		sourceCodec:  codec,
 	}), nil
 }
@@ -195,7 +195,7 @@ func (t *Topology) AddMerge(name string, parents []Node) (Node, error) {
 	return t.add(nodeDefinition{
 		name:    name,
 		kind:    nodeMerge,
-		parents: append([]Node{}, parents...),
+		parents: slices.Clone(parents),
 	}), nil
 }
 

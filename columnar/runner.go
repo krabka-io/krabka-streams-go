@@ -374,12 +374,15 @@ func processPoll(ctx context.Context, run groupRun) (*processedPoll, error) {
 // retriable reports whether the error chain carries a retriable error, such
 // as the schema cache's pending-fetch error.
 func retriable(err error) bool {
-	var marker interface{ Retriable() bool }
-	return errors.As(err, &marker) && marker.Retriable()
+	marker, ok := errors.AsType[interface {
+		error
+		Retriable() bool
+	}](err)
+	return ok && marker.Retriable()
 }
 
 func deadLetter(deadLetterTopic, sourceTopic string, record ConsumedRecord, cause error) ProducedToTopic {
-	headers := append([]RecordHeader{}, record.Headers...)
+	headers := slices.Clone(record.Headers)
 	headers = append(headers,
 		RecordHeader{Key: "krabka.error.class", Value: []byte(fmt.Sprintf("%T", cause))},
 		RecordHeader{Key: "krabka.error.message", Value: []byte(cause.Error())},

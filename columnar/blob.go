@@ -3,6 +3,7 @@ package columnar
 import (
 	"bytes"
 	"fmt"
+	"slices"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
@@ -151,15 +152,7 @@ func envelopeRows(batch arrow.Record, start int) int {
 }
 
 func headersEqual(left, right []RecordHeader) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i, header := range left {
-		if !header.Equal(right[i]) {
-			return false
-		}
-	}
-	return true
+	return slices.EqualFunc(left, right, RecordHeader.Equal)
 }
 
 func blobKey(batch arrow.Record, row int) []byte {

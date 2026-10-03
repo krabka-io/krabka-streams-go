@@ -4,7 +4,7 @@
 It provides krabka schema registry support and Apache Arrow batch processing,
 the Go equivalent of [`krabka-streams-java`](https://github.com/krabka-io/krabka-streams-java).
 
-The minimum Go version is 1.26.
+The minimum Go version is 1.27.1.
 
 ```shell
 go get github.com/krabka-io/krabka-streams-go

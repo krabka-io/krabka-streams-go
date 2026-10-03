@@ -339,8 +339,7 @@ func readJSONValue(arr arrow.Array, field arrow.Field, row int) (json.RawMessage
 }
 
 func isScalarType[T any]() bool {
-	var zero T
-	typ := reflect.TypeOf(&zero).Elem()
+	typ := reflect.TypeFor[T]()
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}

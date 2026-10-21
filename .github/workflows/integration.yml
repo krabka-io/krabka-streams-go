@@ -11,13 +11,15 @@ permissions:
 jobs:
   coordination:
     name: coordination · ${{ matrix.broker }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         broker: [apache-kafka-4.3.1, krabka-0.3.8]
     steps:
+      - name: Keep temporary files off the size-limited /tmp tmpfs
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:

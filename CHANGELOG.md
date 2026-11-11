@@ -6,7 +6,6 @@
 
 - Use the shared CI gate and validate merge queue groups.
 
-
 ## 0.2.0 - 2026-10-02
 
 - Require Go 1.27.1 in the module and Bazel SDK. Use generic collection and
